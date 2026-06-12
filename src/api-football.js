@@ -52,6 +52,14 @@ export class ApiFootballClient {
   getLiveOdds(fixtureId) {
     return this.request("/odds/live", { fixture: fixtureId });
   }
+
+  getFixturesByDate(date, timezone) {
+    return this.request("/fixtures", { date, timezone });
+  }
+
+  getPrediction(fixtureId) {
+    return this.request("/predictions", { fixture: fixtureId });
+  }
 }
 
 function normalizeErrors(errors) {

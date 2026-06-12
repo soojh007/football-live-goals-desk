@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "digest": "node src/run-digest.js",
+    "digest:dry": "node src/run-digest.js --dry-run",
     "test": "node --test"
   },
   "engines": {

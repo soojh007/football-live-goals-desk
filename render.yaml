@@ -1,38 +1,29 @@
 services:
-  - type: web
-    name: live-goals-desk
+  - type: cron
+    name: football-daily-digest
     runtime: node
     plan: starter
+    region: singapore
+    schedule: "0 23 * * *"
     buildCommand: npm test
-    startCommand: npm start
-    healthCheckPath: /health
+    startCommand: npm run digest
     autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: 22
       - key: API_FOOTBALL_KEY
         sync: false
-      - key: POLL_INTERVAL_SECONDS
-        value: 60
-      - key: STATISTICS_REFRESH_SECONDS
-        value: 120
-      - key: UNAVAILABLE_RETRY_SECONDS
-        value: 900
-      - key: ODDS_REFRESH_SECONDS
-        value: 300
-      - key: PUBLIC_URL
-        sync: false
-      - key: DASHBOARD_USERNAME
-        sync: false
-      - key: DASHBOARD_PASSWORD
-        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: ALERT_EMAIL_TO
         sync: false
-      - key: ALERT_EMAIL_FROM
-        value: Live Goals Desk <onboarding@resend.dev>
-      - key: ALERT_MIN_LEVEL
-        value: watch
-      - key: ALERT_COOLDOWN_MINUTES
-        value: 90
+      - key: DIGEST_EMAIL_FROM
+        value: Football Digest <onboarding@resend.dev>
+      - key: DIGEST_TIMEZONE
+        value: Asia/Singapore
+      - key: DIGEST_MAX_ANALYSES
+        value: 40
+      - key: DIGEST_MAX_PICKS
+        value: 12
+      - key: DIGEST_CONCURRENCY
+        value: 4

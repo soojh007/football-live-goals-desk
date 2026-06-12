@@ -1,0 +1,90 @@
+import fs from "node:fs";
+import path from "node:path";
+import { loadEnv } from "./env.js";
+import { ApiFootballClient } from "./api-football.js";
+import {
+  analyzePrediction,
+  rankDigestCandidates,
+  selectDigestFixtures
+} from "./digest-engine.js";
+import { DigestEmail, renderDigestHtml } from "./digest-email.js";
+
+loadEnv();
+
+const timezone = process.env.DIGEST_TIMEZONE ?? "Asia/Singapore";
+const date = process.env.DIGEST_DATE ?? localDate(new Date(), timezone);
+const maxAnalyses = clampInteger(process.env.DIGEST_MAX_ANALYSES, 40, 1, 100);
+const maxPicks = clampInteger(process.env.DIGEST_MAX_PICKS, 12, 1, 30);
+const concurrency = clampInteger(process.env.DIGEST_CONCURRENCY, 4, 1, 8);
+const dryRun = process.argv.includes("--dry-run");
+const client = new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
+const mailer = new DigestEmail({
+  apiKey: process.env.RESEND_API_KEY,
+  to: process.env.ALERT_EMAIL_TO,
+  from: process.env.DIGEST_EMAIL_FROM ?? process.env.ALERT_EMAIL_FROM
+});
+
+const fixturesResult = await client.getFixturesByDate(date, timezone);
+const selected = selectDigestFixtures(fixturesResult.data, {
+  maxAnalyses,
+  now: new Date()
+});
+const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
+  try {
+    const result = await client.getPrediction(fixture.fixture.id);
+    if (!result.data[0]) return null;
+    return analyzePrediction(fixture, result.data[0]);
+  } catch (error) {
+    console.warn(`Skipped fixture ${fixture.fixture.id}: ${error.message}`);
+    return null;
+  }
+});
+const candidates = rankDigestCandidates(analyses.filter(Boolean), maxPicks);
+const report = {
+  date,
+  timezone,
+  fixturesFound: fixturesResult.data.length,
+  analyzed: selected.length,
+  requestsUsed: 1 + selected.length,
+  candidates
+};
+
+fs.mkdirSync(path.resolve("data"), { recursive: true });
+const reportPath = path.resolve("data", `digest-${date}.json`);
+const htmlPath = path.resolve("data", `digest-${date}.html`);
+fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+fs.writeFileSync(htmlPath, renderDigestHtml(report));
+
+if (!dryRun) {
+  await mailer.send(report);
+  console.log(`Digest emailed: ${candidates.length} picks from ${selected.length} analyses.`);
+} else {
+  console.log(`Dry run complete: ${htmlPath}`);
+}
+
+function localDate(value, timeZone) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(value);
+}
+
+function clampInteger(value, fallback, minimum, maximum) {
+  const parsed = Number.parseInt(value, 10);
+  return Math.min(maximum, Math.max(minimum, Number.isFinite(parsed) ? parsed : fallback));
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}

@@ -1,108 +1,87 @@
-# Live Goals Desk
+# Football Daily Digest
 
-A local API-Football monitor for two in-play situations:
+A low-quota API-Football workflow that emails a daily list of likely over 2.5
+and likely under 2.5 matches.
 
-- first-half over 0.5 goals while a match is still 0-0;
-- full-match total goals shown with an explicit line, such as likely over 2.5
-  or likely under 3.5.
+Unlike the original live monitor, this command runs once and exits. It covers
+many countries by distributing its analysis budget across countries instead of
+using it entirely on the first leagues returned by the API.
 
-It combines live score state, fixture statistics, recent changes between polls,
-and available in-play prices. Every signal shows its inputs and is stored as
-JSONL so the rules can be calibrated against results instead of trusted blindly.
+## Request budget
 
-## Setup
+Each run uses:
 
-1. Create a local environment file:
+- one request for all fixtures on the selected date;
+- up to `DIGEST_MAX_ANALYSES` prediction requests.
 
-   ```sh
-   cp .env.example .env
-   ```
+The default is therefore at most 41 API requests per day. Fixtures are selected
+round-robin across countries for broad coverage. Results with insufficient data
+are removed before ranking.
 
-2. Put the API key from the API-SPORTS dashboard in `.env`:
+## Local setup
 
-   ```text
-   API_FOOTBALL_KEY=your_key_here
-   ```
+Create `.env` from `.env.example`, then provide:
 
-3. Start the service:
+```text
+API_FOOTBALL_KEY=your_api_sports_key
+RESEND_API_KEY=your_resend_key
+ALERT_EMAIL_TO=your@email.com
+```
 
-   ```sh
-   npm start
-   ```
+Generate a report without sending email:
 
-4. Open `http://localhost:3000`.
+```sh
+npm run digest:dry
+```
 
-No npm packages are required. Node.js 20 or newer is sufficient.
+This writes:
 
-## How polling works
+- `data/digest-YYYY-MM-DD.json`
+- `data/digest-YYYY-MM-DD.html`
 
-The service calls `/fixtures?live=all` every 60 seconds. For matches inside the
-configured minute windows, statistics refresh every two minutes. Competitions
-without live statistics are retried every 15 minutes instead of every cycle.
-Live odds are requested only when a signal reaches `watch` or `strong`, and
-are cached for five minutes.
+Run and email the digest:
 
-This lowers the fixed live-fixture cost from 4,320 to 1,440 requests per day.
-Match-detail usage then depends on how many relevant fixtures are live.
+```sh
+npm run digest
+```
 
-API-Football does not retain historical in-play odds, so snapshots are written
-to `data/signals-YYYY-MM-DD.jsonl`. Keep these files if you want to measure
-which leagues, score bands, and thresholds actually perform.
+## Ranking
 
-## Configure signals
+The model combines:
 
-Edit `config.json` to change:
+- home and away scoring averages;
+- home and away concession averages;
+- API-Football prediction advice and over/under view;
+- prediction comparison coverage;
+- an expected-goals total converted into an over 2.5 probability.
 
-- monitoring minute windows;
-- minimum shots on target, shots, corners, and recent shots;
-- the score at which a situation becomes `watch`;
-- dashboard timezone.
+The final score is a ranking heuristic, not a guaranteed result or calibrated
+probability.
 
-The score is a transparent live-statistics heuristic, not a calibrated probability.
-Do not interpret a score of 80 as an 80% chance of a goal.
+## Render
 
-## Responsible use
+`render.yaml` defines a Render Cron Job named `football-daily-digest`.
+It runs at `23:00 UTC`, which is `07:00` in Singapore.
 
-This tool does not place bets and does not promise profit. Before acting,
-account for red cards, injuries, match incentives, line movement, suspended
-markets, and limits. Start with paper tracking and set fixed exposure rules.
+When the Blueprint sync creates the cron job, enter:
+
+- `API_FOOTBALL_KEY`
+- `RESEND_API_KEY`
+- `ALERT_EMAIL_TO`
+
+Render cron jobs have a minimum monthly charge of $1. The previous
+`live-goals-desk` web service can remain suspended or be deleted after the cron
+job is confirmed working.
+
+## Configuration
+
+- `DIGEST_MAX_ANALYSES=40`: hard cap on prediction calls per run
+- `DIGEST_MAX_PICKS=12`: maximum matches in the email
+- `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
+- `DIGEST_CONCURRENCY=4`: simultaneous prediction requests
 
 ## Tests
 
 ```sh
 npm test
 ```
-
-## Deploy on Render
-
-1. Push this project to a private GitHub repository.
-2. In Render, choose **New > Blueprint** and connect the repository.
-3. Render reads `render.yaml`. Enter the secret environment variables when
-   prompted:
-
-   - `API_FOOTBALL_KEY`: your API-SPORTS key;
-   - `PUBLIC_URL`: the final `https://...onrender.com` service URL;
-   - `DASHBOARD_USERNAME` and `DASHBOARD_PASSWORD`: credentials for the site;
-   - `RESEND_API_KEY`: an API key from Resend;
-   - `ALERT_EMAIL_TO`: the address that receives alerts.
-
-The service must stay running continuously for in-play polling. The included
-Blueprint uses Render's `starter` web-service plan.
-
-## Email alerts
-
-Email delivery uses the Resend HTTPS API. The default sender,
-`onboarding@resend.dev`, can send test messages to the email address associated
-with your Resend account. For normal delivery, verify a domain in Resend and
-change `ALERT_EMAIL_FROM` to an address on that domain.
-
-By default, `watch` and `strong` signals trigger email. A fixture and signal
-level is suppressed for 90 minutes after sending, preventing every poll from
-creating another message. Configure this with:
-
-- `ALERT_MIN_LEVEL=strong` to receive only strong signals;
-- `ALERT_COOLDOWN_MINUTES=90` to change duplicate suppression;
-- comma-separated addresses in `ALERT_EMAIL_TO` for multiple recipients.
-
-Alert memory is held by the running service. A Render restart can allow the
-same active match to alert again.
