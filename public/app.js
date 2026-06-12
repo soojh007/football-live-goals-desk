@@ -60,6 +60,8 @@ function render(state) {
 
   for (const fixture of state.fixtures) {
     const card = template.content.cloneNode(true);
+    const cardElement = card.querySelector(".fixture-card");
+    cardElement.classList.toggle("no-stats", !fixture.hasStatistics);
     card.querySelector(".competition").textContent = [fixture.country, fixture.league]
       .filter(Boolean)
       .join(" · ");
@@ -86,8 +88,11 @@ function render(state) {
       signals.append(warningElement);
     }
     if (!fixture.hasStatistics) {
-      signals.textContent =
-        "Insufficient live statistics: no betting signal will be generated.";
+      const unavailable = document.createElement("div");
+      unavailable.className = "data-unavailable";
+      unavailable.innerHTML =
+        "<strong>No stats coverage</strong><span>This match is excluded from betting signals.</span>";
+      signals.append(unavailable);
     } else if (!fixture.signals.length) {
       signals.textContent = "Monitoring only: no configured market is active.";
     }

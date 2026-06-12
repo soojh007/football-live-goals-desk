@@ -12,7 +12,8 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top right, #153c30, transparent 34rem), #09110f; }
+html { background: #09110f; }
+body { margin: 0; min-height: 100dvh; background: radial-gradient(circle at top right, #153c30, transparent 34rem), #09110f; }
 header, main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
 header { display: flex; justify-content: space-between; gap: 24px; align-items: end; padding: 52px 0 28px; }
 h1 { font-size: clamp(2.5rem, 7vw, 5rem); letter-spacing: -0.055em; margin: 0; line-height: .95; }
@@ -29,15 +30,18 @@ button:disabled { opacity: .55; cursor: wait; }
 .fixture-head, .signal-title { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
 .competition { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 7px; }
 h2 { font-size: 1.25rem; margin: 0; }
-.clock { text-align: right; }
-.clock strong { display: block; font-size: 1.65rem; }
-.clock span { color: var(--green); font-size: .82rem; }
+.clock { flex: 0 0 auto; min-width: 74px; text-align: right; }
+.clock strong { display: block; font-size: 1.65rem; white-space: nowrap; }
+.clock span { color: var(--green); display: block; font-size: .82rem; margin-top: 2px; white-space: nowrap; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 20px 0; }
 .stats div { background: #0b1512; border-radius: 10px; padding: 12px; }
 .stats strong, .stats span { display: block; }
 .stats strong { font-size: 1.1rem; }
 .stats span { color: var(--muted); font-size: .72rem; margin-top: 3px; }
 .signals { display: grid; gap: 10px; color: var(--muted); }
+.data-unavailable { align-items: center; background: #0b1512; border-radius: 10px; display: flex; gap: 10px; padding: 12px 14px; }
+.data-unavailable strong { color: var(--amber); font-size: .78rem; white-space: nowrap; }
+.data-unavailable span { font-size: .78rem; }
 .context-warning { background: rgba(255, 119, 119, .1); border: 1px solid rgba(255, 119, 119, .35); border-radius: 10px; color: var(--red); font-size: .8rem; font-weight: 800; padding: 10px 12px; text-transform: uppercase; }
 .signal { border-left: 3px solid var(--line); background: #0b1512; border-radius: 0 12px 12px 0; padding: 15px; }
 .signal.watch { border-color: var(--amber); }
@@ -56,8 +60,33 @@ h2 { font-size: 1.25rem; margin: 0; }
 .empty { border: 1px dashed var(--line); border-radius: 16px; color: var(--muted); padding: 48px 24px; text-align: center; }
 
 @media (max-width: 650px) {
-  header { align-items: start; flex-direction: column; padding-top: 34px; }
-  .statusbar { align-items: start; flex-direction: column; gap: 5px; }
+  header, main { width: min(100% - 24px, 1180px); }
+  header { align-items: start; flex-direction: column; gap: 18px; padding: max(24px, env(safe-area-inset-top)) 0 20px; }
+  h1 { font-size: clamp(2.55rem, 14vw, 4rem); }
+  .eyebrow { margin-top: 0; }
+  .subtitle { font-size: .9rem; line-height: 1.45; margin-bottom: 0; }
+  button { padding: 11px 16px; }
+  .statusbar { display: grid; gap: 6px 14px; grid-template-columns: 1fr 1fr; line-height: 1.35; padding: 12px 0; }
+  .notice { font-size: .78rem; line-height: 1.45; margin: 14px 0 18px; }
+  .fixtures { gap: 12px; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+  .fixture-card { border-radius: 14px; padding: 16px; }
+  .fixture-head { gap: 12px; }
+  .fixture-head > div:first-child { min-width: 0; }
+  .competition { font-size: .65rem; line-height: 1.35; }
+  h2 { font-size: 1.05rem; line-height: 1.28; overflow-wrap: anywhere; }
+  .clock { min-width: 62px; }
+  .clock strong { font-size: 1.35rem; }
+  .clock span { font-size: .75rem; }
   .stats { grid-template-columns: repeat(2, 1fr); }
-  .fixture-head { gap: 10px; }
+  .stats div { padding: 10px; }
+  .no-stats .stats { display: none; }
+  .no-stats .signals { margin-top: 16px; }
+  .data-unavailable { align-items: start; flex-direction: column; gap: 3px; padding: 11px 12px; }
+  .signal { padding: 12px; }
+  .signal-title > div { align-items: start; flex-direction: column; gap: 6px; }
+  .signal p { line-height: 1.5; }
+}
+
+@media (max-width: 390px) {
+  .statusbar { grid-template-columns: 1fr; }
 }
