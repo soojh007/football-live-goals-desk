@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: live-goals-desk
+    runtime: node
+    plan: starter
+    buildCommand: npm test
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: POLL_INTERVAL_SECONDS
+        value: 20
+      - key: PUBLIC_URL
+        sync: false
+      - key: DASHBOARD_USERNAME
+        sync: false
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ALERT_EMAIL_TO
+        sync: false
+      - key: ALERT_EMAIL_FROM
+        value: Live Goals Desk <onboarding@resend.dev>
+      - key: ALERT_MIN_LEVEL
+        value: watch
+      - key: ALERT_COOLDOWN_MINUTES
+        value: 90

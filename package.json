@@ -1,0 +1,15 @@
+{
+  "name": "football-live-betting-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local API-Football dashboard for transparent in-play goal signals.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

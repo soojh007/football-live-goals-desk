@@ -1,0 +1,22 @@
+{
+  "timezone": "Asia/Singapore",
+  "minimumSignalScore": 58,
+  "halftimeOver05": {
+    "enabled": true,
+    "startMinute": 25,
+    "endMinute": 43,
+    "minimumShotsOnTarget": 2,
+    "minimumTotalShots": 7,
+    "minimumCorners": 2,
+    "minimumRecentShots": 2
+  },
+  "totalGoals": {
+    "enabled": true,
+    "startMinute": 15,
+    "endMinute": 82,
+    "minimumShotsOnTarget": 3,
+    "minimumTotalShots": 9,
+    "minimumCorners": 3,
+    "minimumRecentShots": 2
+  }
+}
