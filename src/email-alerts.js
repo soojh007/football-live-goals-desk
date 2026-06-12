@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const LEVEL_RANK = { pass: 0, watch: 1, strong: 2 };
 
 export class EmailAlerts {
@@ -62,13 +64,18 @@ export class EmailAlerts {
       subject: `${signal.level.toUpperCase()}: ${signal.label} | ${fixture.home} vs ${fixture.away}`,
       html: renderEmail({ fixture, signal, dashboardUrl: this.dashboardUrl })
     };
+    const idempotencyKey = createIdempotencyKey({
+      key,
+      payload,
+      bucket: Math.floor(Date.now() / this.cooldownMs)
+    });
 
     const response = await this.fetchImpl("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         authorization: `Bearer ${this.apiKey}`,
         "content-type": "application/json",
-        "idempotency-key": `${key}-${Math.floor(Date.now() / this.cooldownMs)}`
+        "idempotency-key": idempotencyKey
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(15_000)
@@ -101,6 +108,14 @@ export class EmailAlerts {
 
 function alertKey(fixture, signal) {
   return `${fixture.fixtureId}:${signal.type}:${signal.level}`;
+}
+
+function createIdempotencyKey({ key, payload, bucket }) {
+  const digest = createHash("sha256")
+    .update(JSON.stringify(payload))
+    .digest("hex")
+    .slice(0, 24);
+  return `live-goals:${key}:${bucket}:${digest}`;
 }
 
 function splitAddresses(value = "") {

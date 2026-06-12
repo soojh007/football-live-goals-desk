@@ -46,6 +46,40 @@ test("reports disabled when credentials or recipient are missing", () => {
   assert.equal(new EmailAlerts({ apiKey: "test-key" }).enabled, false);
 });
 
+test("changes the idempotency key when the email payload changes", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push({ url, options });
+    return new Response(JSON.stringify({ id: `email-${requests.length}` }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    });
+  };
+  const firstAlerts = new EmailAlerts({
+    apiKey: "test-key",
+    to: "owner@example.com",
+    fetchImpl
+  });
+  const secondAlerts = new EmailAlerts({
+    apiKey: "test-key",
+    to: "owner@example.com",
+    fetchImpl
+  });
+  const firstFixture = makeFixture();
+  const changedFixture = makeFixture();
+  changedFixture.minute = 38;
+  changedFixture.signals[0].score = 74;
+
+  await firstAlerts.notify([firstFixture]);
+  await secondAlerts.notify([changedFixture]);
+
+  assert.equal(requests.length, 2);
+  assert.notEqual(
+    requests[0].options.headers["idempotency-key"],
+    requests[1].options.headers["idempotency-key"]
+  );
+});
+
 function makeFixture() {
   return {
     fixtureId: 123,
