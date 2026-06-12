@@ -3,7 +3,8 @@
 A local API-Football monitor for two in-play situations:
 
 - first-half over 0.5 goals while a match is still 0-0;
-- full-match total goals shown as likely over or likely under.
+- full-match total goals shown with an explicit line, such as likely over 2.5
+  or likely under 3.5.
 
 It combines live score state, fixture statistics, recent changes between polls,
 and available in-play prices. Every signal shows its inputs and is stored as

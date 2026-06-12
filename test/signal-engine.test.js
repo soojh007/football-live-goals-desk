@@ -80,6 +80,72 @@ test("does not generate totals signals without live statistics", () => {
   assert.deepEqual(result.signals, []);
 });
 
+test("names the exact half-goal line in totals signals", () => {
+  const result = evaluateFixture({
+    fixture: makeFixture({ minute: 28, status: "1H", homeGoals: 1, awayGoals: 1 }),
+    statistics: {
+      shotsOnTarget: 5,
+      totalShots: 13,
+      corners: 4,
+      possession: 100,
+      shotsInsideBox: 7
+    },
+    previousStatistics: {
+      shotsOnTarget: 3,
+      totalShots: 9,
+      corners: 3,
+      possession: 100,
+      shotsInsideBox: 5
+    },
+    oddsResponse: [],
+    config
+  });
+  const signal = result.signals.find((item) => item.type === "TOTAL_OVER");
+
+  assert.equal(signal.line, 3.5);
+  assert.equal(signal.label, "Likely over 3.5 total goals");
+});
+
+test("uses the closest available live total line in the label", () => {
+  const result = evaluateFixture({
+    fixture: makeFixture({ minute: 55, status: "2H", homeGoals: 1, awayGoals: 0 }),
+    statistics: {
+      shotsOnTarget: 1,
+      totalShots: 5,
+      corners: 1,
+      possession: 100,
+      shotsInsideBox: 2
+    },
+    previousStatistics: {
+      shotsOnTarget: 1,
+      totalShots: 5,
+      corners: 1,
+      possession: 100,
+      shotsInsideBox: 2
+    },
+    oddsResponse: [
+      {
+        odds: [
+          {
+            name: "Book A",
+            bets: [
+              {
+                name: "Goals Over/Under",
+                values: [{ value: "Under 2.5", odd: "1.80" }]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    config
+  });
+  const signal = result.signals.find((item) => item.type === "TOTAL_UNDER");
+
+  assert.equal(signal.line, 2.5);
+  assert.equal(signal.label, "Likely under 2.5 total goals");
+});
+
 test("extracts the best matching goal market data", () => {
   const markets = extractGoalMarkets([
     {

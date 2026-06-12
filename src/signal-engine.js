@@ -166,11 +166,15 @@ function scoreTotalGoals({
   pressure += statistics.shotsInsideBox >= 6 ? 8 : 0;
   pressure = Math.min(100, Math.round(pressure));
 
-  const expectedLine = goals + (minute < 35 ? 1.5 : minute < 65 ? 1 : 0.5);
+  const expectedLine = toHalfGoalLine(
+    goals + (minute < 35 ? 1.5 : minute < 65 ? 1 : 0.5)
+  );
   const overPrice = findClosestPrice(market, "Over", expectedLine);
   const underPrice = findClosestPrice(market, "Under", expectedLine);
   const leanOver = pressure >= minimumSignalScore;
   const score = leanOver ? pressure : Math.min(100, 100 - pressure + 20);
+  const selectedPrice = leanOver ? overPrice : underPrice;
+  const selectedLine = selectedPrice?.line ?? expectedLine;
 
   const reasons = [
     `${statistics.shotsOnTarget} shots on target`,
@@ -182,11 +186,12 @@ function scoreTotalGoals({
 
   return {
     type: leanOver ? "TOTAL_OVER" : "TOTAL_UNDER",
-    label: leanOver ? "Total goals: likely over" : "Total goals: likely under",
+    label: `Likely ${leanOver ? "over" : "under"} ${selectedLine} total goals`,
+    line: selectedLine,
     score: Math.round(score),
     level: signalLevel(score, minimumSignalScore),
     reasons,
-    price: leanOver ? overPrice : underPrice,
+    price: selectedPrice,
     caution: cautionText(
       leanOver
         ? "Confirm the offered line still leaves value after recent goals or VAR."
@@ -292,6 +297,10 @@ function calculateRecentChange(current, previous) {
 function progressScore(value, target, points) {
   if (!target) return 0;
   return Math.min(points, (Math.max(0, value) / target) * points);
+}
+
+function toHalfGoalLine(value) {
+  return Math.floor(Math.max(0, value)) + 0.5;
 }
 
 function signalLevel(score, minimumSignalScore) {
