@@ -182,7 +182,7 @@ function scoreTotalGoals({
 
   return {
     type: leanOver ? "TOTAL_OVER" : "TOTAL_UNDER",
-    label: leanOver ? "Total goals: over lean" : "Total goals: under lean",
+    label: leanOver ? "Total goals: likely over" : "Total goals: likely under",
     score: Math.round(score),
     level: signalLevel(score, minimumSignalScore),
     reasons,
@@ -190,7 +190,7 @@ function scoreTotalGoals({
     caution: cautionText(
       leanOver
         ? "Confirm the offered line still leaves value after recent goals or VAR."
-        : "An under lean can be fragile: penalties and game state can reverse it quickly.",
+        : "A likely-under signal can be fragile: penalties and game state can reverse it quickly.",
       context
     )
   };

@@ -3,7 +3,7 @@
 A local API-Football monitor for two in-play situations:
 
 - first-half over 0.5 goals while a match is still 0-0;
-- full-match total-goals over/under pressure.
+- full-match total goals shown as likely over or likely under.
 
 It combines live score state, fixture statistics, recent changes between polls,
 and available in-play prices. Every signal shows its inputs and is stored as
@@ -52,7 +52,7 @@ Edit `config.json` to change:
 - the score at which a situation becomes `watch`;
 - dashboard timezone.
 
-The score is a transparent pressure heuristic, not a calibrated probability.
+The score is a transparent live-statistics heuristic, not a calibrated probability.
 Do not interpret a score of 80 as an 80% chance of a goal.
 
 ## Responsible use
