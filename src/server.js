@@ -34,9 +34,11 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   if (url.pathname === "/health") {
-    return json(response, monitor.state.error ? 503 : 200, {
-      ok: !monitor.state.error,
-      updatedAt: monitor.state.updatedAt
+    return json(response, 200, {
+      ok: true,
+      status: monitor.state.error ? "degraded" : "healthy",
+      updatedAt: monitor.state.updatedAt,
+      monitorError: monitor.state.error
     });
   }
   if (!isAuthorized(request)) {
