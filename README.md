@@ -36,9 +36,14 @@ No npm packages are required. Node.js 20 or newer is sufficient.
 
 ## How polling works
 
-The service calls `/fixtures?live=all` every 20 seconds. It only requests
-`/fixtures/statistics` and `/odds/live` for matches inside the configured
-minute windows. This keeps request use tied to relevant matches.
+The service calls `/fixtures?live=all` every 60 seconds. For matches inside the
+configured minute windows, statistics refresh every two minutes. Competitions
+without live statistics are retried every 15 minutes instead of every cycle.
+Live odds are requested only when a signal reaches `watch` or `strong`, and
+are cached for five minutes.
+
+This lowers the fixed live-fixture cost from 4,320 to 1,440 requests per day.
+Match-detail usage then depends on how many relevant fixtures are live.
 
 API-Football does not retain historical in-play odds, so snapshots are written
 to `data/signals-YYYY-MM-DD.jsonl`. Keep these files if you want to measure

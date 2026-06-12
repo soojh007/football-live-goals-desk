@@ -13,7 +13,7 @@ loadEnv();
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDirectory = path.join(root, "public");
 const port = Number(process.env.PORT ?? 3000);
-const pollInterval = Math.max(15, Number(process.env.POLL_INTERVAL_SECONDS ?? 20));
+const pollInterval = Math.max(30, Number(process.env.POLL_INTERVAL_SECONDS ?? 60));
 const client = new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
 const alerts = new EmailAlerts({
   apiKey: process.env.RESEND_API_KEY,
@@ -26,6 +26,9 @@ const alerts = new EmailAlerts({
 const monitor = new LiveMonitor({
   client,
   alerts,
+  statisticsRefreshSeconds: Number(process.env.STATISTICS_REFRESH_SECONDS ?? 120),
+  unavailableRetrySeconds: Number(process.env.UNAVAILABLE_RETRY_SECONDS ?? 900),
+  oddsRefreshSeconds: Number(process.env.ODDS_REFRESH_SECONDS ?? 300),
   store: new SnapshotStore(path.join(root, "data")),
   configPath: path.join(root, "config.json")
 });
