@@ -41,9 +41,11 @@ export function evaluateFixture({
   const recent = calculateRecentChange(statistics, previousStatistics);
   const market = extractGoalMarkets(oddsResponse);
   const context = extractMatchContext(fixture.events);
+  const hasStatistics = statistics.totalShots > 0 || statistics.shotsOnTarget > 0;
   const signals = [];
 
   if (
+    hasStatistics &&
     config.halftimeOver05.enabled &&
     status === "1H" &&
     goals === 0 &&
@@ -64,6 +66,7 @@ export function evaluateFixture({
   }
 
   if (
+    hasStatistics &&
     config.totalGoals.enabled &&
     ["1H", "HT", "2H"].includes(status) &&
     minute >= config.totalGoals.startMinute &&
@@ -99,7 +102,7 @@ export function evaluateFixture({
     context,
     markets: market,
     signals,
-    hasStatistics: statistics.totalShots > 0 || statistics.shotsOnTarget > 0
+    hasStatistics
   };
 }
 

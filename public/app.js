@@ -85,7 +85,10 @@ function render(state) {
       warningElement.textContent = warning;
       signals.append(warningElement);
     }
-    if (!fixture.signals.length) {
+    if (!fixture.hasStatistics) {
+      signals.textContent =
+        "Insufficient live statistics: no betting signal will be generated.";
+    } else if (!fixture.signals.length) {
       signals.textContent = "Monitoring only: no configured market is active.";
     }
     for (const signal of fixture.signals) {

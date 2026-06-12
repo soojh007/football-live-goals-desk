@@ -62,6 +62,24 @@ test("does not create halftime over 0.5 signal after a goal", () => {
   assert.equal(result.signals.some((item) => item.type === "HT_OVER_0_5"), false);
 });
 
+test("does not generate totals signals without live statistics", () => {
+  const result = evaluateFixture({
+    fixture: makeFixture({ minute: 17, status: "1H", homeGoals: 1, awayGoals: 1 }),
+    statistics: {
+      shotsOnTarget: 0,
+      totalShots: 0,
+      corners: 0,
+      possession: 0,
+      shotsInsideBox: 0
+    },
+    oddsResponse: [],
+    config
+  });
+
+  assert.equal(result.hasStatistics, false);
+  assert.deepEqual(result.signals, []);
+});
+
 test("extracts the best matching goal market data", () => {
   const markets = extractGoalMarkets([
     {
