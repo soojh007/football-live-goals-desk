@@ -13,8 +13,33 @@ export function selectDigestFixtures(fixtures, { maxAnalyses = 40, now = new Dat
     );
   });
 
+  return selectAcrossCountries(eligible, maxAnalyses);
+}
+
+export function selectUpcomingFixtures(
+  fixtures,
+  { maxAnalyses = 15, start = new Date(), end } = {}
+) {
+  const endTime = end instanceof Date ? end.getTime() : start.getTime() + 3 * 60 * 60_000;
+  const eligible = fixtures.filter((fixture) => {
+    const status = fixture.fixture?.status?.short;
+    const kickoff = new Date(fixture.fixture?.date ?? 0).getTime();
+    return (
+      fixture.fixture?.id &&
+      ELIGIBLE_STATUSES.has(status) &&
+      kickoff >= start.getTime() &&
+      kickoff <= endTime &&
+      fixture.teams?.home?.id &&
+      fixture.teams?.away?.id
+    );
+  });
+
+  return selectAcrossCountries(eligible, maxAnalyses);
+}
+
+function selectAcrossCountries(fixtures, limit) {
   const byCountry = new Map();
-  for (const fixture of eligible) {
+  for (const fixture of fixtures) {
     const country = fixture.league?.country ?? "International";
     if (!byCountry.has(country)) byCountry.set(country, []);
     byCountry.get(country).push(fixture);
@@ -27,14 +52,14 @@ export function selectDigestFixtures(fixtures, { maxAnalyses = 40, now = new Dat
 
   const selected = [];
   const countries = [...byCountry.keys()].sort();
-  while (selected.length < maxAnalyses) {
+  while (selected.length < limit) {
     let added = false;
     for (const country of countries) {
       const fixture = byCountry.get(country).shift();
       if (!fixture) continue;
       selected.push(fixture);
       added = true;
-      if (selected.length >= maxAnalyses) break;
+      if (selected.length >= limit) break;
     }
     if (!added) break;
   }

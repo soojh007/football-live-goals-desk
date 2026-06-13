@@ -1,4 +1,35 @@
 services:
+  - type: web
+    name: football-match-finder
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: npm test
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: DASHBOARD_USERNAME
+        sync: false
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: DIGEST_TIMEZONE
+        value: Asia/Singapore
+      - key: SHORTLIST_WINDOW_HOURS
+        value: 3
+      - key: SHORTLIST_MAX_ANALYSES
+        value: 15
+      - key: SHORTLIST_MAX_PICKS
+        value: 10
+      - key: SHORTLIST_COOLDOWN_MINUTES
+        value: 15
+      - key: DIGEST_CONCURRENCY
+        value: 4
+
   - type: cron
     name: football-daily-digest
     runtime: node

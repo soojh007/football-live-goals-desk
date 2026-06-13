@@ -4,66 +4,54 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadEnv } from "./env.js";
 import { ApiFootballClient } from "./api-football.js";
-import { LiveMonitor } from "./monitor.js";
-import { SnapshotStore } from "./snapshot-store.js";
-import { EmailAlerts } from "./email-alerts.js";
+import { ShortlistService } from "./shortlist-service.js";
 
 loadEnv();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDirectory = path.join(root, "public");
 const port = Number(process.env.PORT ?? 3000);
-const pollInterval = Math.max(30, Number(process.env.POLL_INTERVAL_SECONDS ?? 60));
 const client = new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
-const alerts = new EmailAlerts({
-  apiKey: process.env.RESEND_API_KEY,
-  to: process.env.ALERT_EMAIL_TO,
-  from: process.env.ALERT_EMAIL_FROM,
-  minimumLevel: process.env.ALERT_MIN_LEVEL,
-  dashboardUrl: process.env.PUBLIC_URL,
-  cooldownMinutes: process.env.ALERT_COOLDOWN_MINUTES
-});
-const monitor = new LiveMonitor({
+const shortlist = new ShortlistService({
   client,
-  alerts,
-  statisticsRefreshSeconds: Number(process.env.STATISTICS_REFRESH_SECONDS ?? 120),
-  unavailableRetrySeconds: Number(process.env.UNAVAILABLE_RETRY_SECONDS ?? 900),
-  oddsRefreshSeconds: Number(process.env.ODDS_REFRESH_SECONDS ?? 300),
-  store: new SnapshotStore(path.join(root, "data")),
-  configPath: path.join(root, "config.json")
+  timezone: process.env.DIGEST_TIMEZONE ?? "Asia/Singapore",
+  windowHours: clampNumber(process.env.SHORTLIST_WINDOW_HOURS, 3, 2, 3),
+  maxAnalyses: clampNumber(process.env.SHORTLIST_MAX_ANALYSES, 15, 1, 25),
+  maxPicks: clampNumber(process.env.SHORTLIST_MAX_PICKS, 10, 1, 20),
+  concurrency: clampNumber(process.env.DIGEST_CONCURRENCY, 4, 1, 8),
+  cooldownMinutes: clampNumber(process.env.SHORTLIST_COOLDOWN_MINUTES, 15, 5, 120)
 });
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
 
   if (url.pathname === "/health") {
-    return json(response, 200, {
-      ok: true,
-      status: monitor.state.error ? "degraded" : "healthy",
-      updatedAt: monitor.state.updatedAt,
-      monitorError: monitor.state.error
-    });
+    return json(response, 200, { ok: true });
   }
   if (!isAuthorized(request)) {
     response.writeHead(401, {
       "content-type": "text/plain; charset=utf-8",
-      "www-authenticate": 'Basic realm="Live Goals Desk"'
+      "www-authenticate": 'Basic realm="Football Match Finder"'
     });
     return response.end("Authentication required");
   }
-  if (url.pathname === "/api/state") {
-    return json(response, 200, monitor.state);
+  if (url.pathname === "/api/shortlist" && request.method === "GET") {
+    return json(response, 200, shortlist.getState());
   }
-  if (url.pathname === "/api/refresh" && request.method === "POST") {
-    return json(response, 200, await monitor.poll());
-  }
-  if (url.pathname === "/api/config") {
-    return json(response, 200, monitor.getConfig());
+  if (url.pathname === "/api/shortlist" && request.method === "POST") {
+    try {
+      return json(response, 200, await shortlist.generate());
+    } catch (error) {
+      return json(response, error.statusCode ?? 500, {
+        error: error.message,
+        ...(error.state ?? shortlist.getState())
+      });
+    }
   }
 
   const requestedPath = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
   const safePath = path.resolve(publicDirectory, requestedPath);
-  if (!safePath.startsWith(publicDirectory) || !fs.existsSync(safePath)) {
+  if (!safePath.startsWith(`${publicDirectory}${path.sep}`) || !fs.existsSync(safePath)) {
     return text(response, 404, "Not found");
   }
   response.writeHead(200, { "content-type": mimeType(safePath) });
@@ -71,12 +59,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, () => {
-  console.log(`Live goals dashboard: http://localhost:${port}`);
-  if (!process.env.API_FOOTBALL_KEY) {
-    console.log("Add API_FOOTBALL_KEY to .env, then restart the app.");
-  }
-  monitor.poll();
-  setInterval(() => monitor.poll(), pollInterval * 1000).unref();
+  console.log(`Football match finder: http://localhost:${port}`);
 });
 
 function json(response, status, body) {
@@ -93,13 +76,12 @@ function text(response, status, body) {
 }
 
 function mimeType(filePath) {
-  const extension = path.extname(filePath);
   return (
     {
       ".html": "text/html; charset=utf-8",
       ".css": "text/css; charset=utf-8",
       ".js": "text/javascript; charset=utf-8"
-    }[extension] ?? "application/octet-stream"
+    }[path.extname(filePath)] ?? "application/octet-stream"
   );
 }
 
@@ -107,14 +89,16 @@ function isAuthorized(request) {
   const username = process.env.DASHBOARD_USERNAME;
   const password = process.env.DASHBOARD_PASSWORD;
   if (!username || !password) return true;
-
   const header = request.headers.authorization ?? "";
   if (!header.startsWith("Basic ")) return false;
-
   try {
-    const supplied = Buffer.from(header.slice(6), "base64").toString("utf8");
-    return supplied === `${username}:${password}`;
+    return Buffer.from(header.slice(6), "base64").toString("utf8") === `${username}:${password}`;
   } catch {
     return false;
   }
+}
+
+function clampNumber(value, fallback, minimum, maximum) {
+  const parsed = Number.parseInt(value, 10);
+  return Math.min(maximum, Math.max(minimum, Number.isFinite(parsed) ? parsed : fallback));
 }

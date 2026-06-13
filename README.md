@@ -1,15 +1,16 @@
-# Football Daily Digest
+# Football Match Finder
 
-A low-quota API-Football workflow that emails a daily list of likely over 2.5
-and likely under 2.5 matches.
+A low-quota API-Football workflow with:
 
-Unlike the original live monitor, this command runs once and exits. It covers
-many countries by distributing its analysis budget across countries instead of
-using it entirely on the first leagues returned by the API.
+- a daily email of likely over 2.5 and likely under 2.5 matches;
+- a protected frontend that generates a list for the next three hours on demand.
+
+Both modes cover many countries by distributing the analysis budget across
+countries instead of using it entirely on the first leagues returned by the API.
 
 ## Request budget
 
-Each run uses:
+The daily email uses:
 
 - one request for all fixtures on the selected date;
 - up to `DIGEST_MAX_ANALYSES` prediction requests.
@@ -17,6 +18,14 @@ Each run uses:
 The default is therefore at most 41 API requests per day. Fixtures are selected
 round-robin across countries for broad coverage. Results with insufficient data
 are removed before ranking.
+
+The frontend uses no API-Football requests while idle. Each button click uses:
+
+- one fixture request, or two if the three-hour window crosses midnight;
+- up to `SHORTLIST_MAX_ANALYSES` prediction requests.
+
+The default is at most 17 requests per generated list. The result is cached and
+the button is locked for 15 minutes.
 
 ## Local setup
 
@@ -45,6 +54,15 @@ Run and email the digest:
 npm run digest
 ```
 
+Open the frontend:
+
+```sh
+npm start
+```
+
+Then visit `http://localhost:3000`. Click **Generate new list** when you want to
+spend the request budget.
+
 ## Ranking
 
 The model combines:
@@ -60,18 +78,23 @@ probability.
 
 ## Render
 
-`render.yaml` defines a Render Cron Job named `football-daily-digest`.
-It runs at `23:00 UTC`, which is `07:00` in Singapore.
+`render.yaml` defines:
 
-When the Blueprint sync creates the cron job, enter:
+- `football-daily-digest`, a Cron Job that runs at `23:00 UTC`, which is
+  `07:00` in Singapore;
+- `football-match-finder`, a web service for the on-demand three-hour list.
+
+When the Blueprint sync creates the services, enter:
 
 - `API_FOOTBALL_KEY`
 - `RESEND_API_KEY`
 - `ALERT_EMAIL_TO`
+- `DASHBOARD_USERNAME`
+- `DASHBOARD_PASSWORD`
 
-Render cron jobs have a minimum monthly charge of $1. The previous
-`live-goals-desk` web service can remain suspended or be deleted after the cron
-job is confirmed working.
+The Resend variables are needed only by the cron job. The dashboard username
+and password protect the frontend. Render web services and cron jobs are billed
+separately according to their selected plans.
 
 ## Configuration
 
@@ -79,6 +102,10 @@ job is confirmed working.
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
 - `DIGEST_CONCURRENCY=4`: simultaneous prediction requests
+- `SHORTLIST_WINDOW_HOURS=3`: upcoming kickoff window, clamped to 2-3 hours
+- `SHORTLIST_MAX_ANALYSES=15`: prediction-call cap per button click
+- `SHORTLIST_MAX_PICKS=10`: maximum cards shown on the frontend
+- `SHORTLIST_COOLDOWN_MINUTES=15`: minimum time between scans
 
 ## Tests
 

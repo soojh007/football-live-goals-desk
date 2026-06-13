@@ -1,140 +1,125 @@
 const fixturesElement = document.querySelector("#fixtures");
-const connectionElement = document.querySelector("#connection");
-const updatedElement = document.querySelector("#updated");
-const quotaElement = document.querySelector("#quota");
-const alertsElement = document.querySelector("#alerts");
-const refreshButton = document.querySelector("#refresh");
+const statusElement = document.querySelector("#status");
+const usageElement = document.querySelector("#usage");
+const cooldownElement = document.querySelector("#cooldown");
+const summaryElement = document.querySelector("#summary");
+const generateButton = document.querySelector("#generate");
 const template = document.querySelector("#fixture-template");
+let nextAllowedAt = null;
 
-refreshButton.addEventListener("click", async () => {
-  refreshButton.disabled = true;
-  await fetch("/api/refresh", { method: "POST" });
-  await loadState();
-  refreshButton.disabled = false;
+generateButton.addEventListener("click", async () => {
+  setLoading(true);
+  try {
+    const response = await fetch("/api/shortlist", { method: "POST" });
+    const state = await response.json();
+    if (!response.ok && response.status !== 429) throw new Error(state.error);
+    render(state);
+  } catch (error) {
+    statusElement.textContent = `Could not generate list: ${error.message}`;
+    statusElement.className = "error";
+  } finally {
+    setLoading(false);
+  }
 });
 
 async function loadState() {
   try {
-    const state = await fetch("/api/state", { cache: "no-store" }).then((response) =>
+    const state = await fetch("/api/shortlist", { cache: "no-store" }).then((response) =>
       response.json()
     );
     render(state);
   } catch (error) {
-    connectionElement.textContent = `Dashboard error: ${error.message}`;
-    connectionElement.className = "error";
+    statusElement.textContent = `Dashboard error: ${error.message}`;
+    statusElement.className = "error";
   }
 }
 
 function render(state) {
-  connectionElement.textContent = state.error
-    ? state.error
-    : state.loading
-      ? "Polling live matches..."
-      : "Live feed connected";
-  connectionElement.className = state.error ? "error" : "connected";
-  updatedElement.textContent = state.updatedAt
-    ? `Updated ${new Date(state.updatedAt).toLocaleTimeString()}`
-    : "";
-  quotaElement.textContent = state.remainingRequests
-    ? `${state.remainingRequests} API requests remaining`
-    : "";
-  alertsElement.textContent = state.alerts?.enabled
-    ? state.alerts.error
-      ? `Email error: ${state.alerts.error}`
-      : state.alerts.lastResult?.ok
-        ? `Email active · last sent ${new Date(state.alerts.lastResult.at).toLocaleTimeString()}`
-        : "Email alerts active"
-    : "Email alerts not configured";
-  alertsElement.className = state.alerts?.error ? "error" : "";
+  nextAllowedAt = state.nextAllowedAt ? new Date(state.nextAllowedAt) : null;
+  updateCooldown();
+  if (!state.report) return;
+
+  const report = state.report;
+  statusElement.textContent = `List generated ${new Date(report.generatedAt).toLocaleTimeString()}`;
+  statusElement.className = "connected";
+  usageElement.textContent = `${report.requestsUsed} API requests used`;
+  summaryElement.hidden = false;
+  summaryElement.textContent =
+    `${report.candidates.length} picks from ${report.analyzed} matches analyzed · ` +
+    `${formatTime(report.windowStart)} to ${formatTime(report.windowEnd)}`;
 
   fixturesElement.replaceChildren();
-  if (!state.fixtures?.length) {
+  if (!report.candidates.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.textContent = state.error
-      ? "Fix the connection message above, then refresh."
-      : "No live matches currently meet the configured monitoring windows.";
+    empty.textContent = report.upcomingFound
+      ? "Matches were found, but none passed the data-quality filter."
+      : "No eligible matches begin in the next three hours.";
     fixturesElement.append(empty);
     return;
   }
 
-  for (const fixture of state.fixtures) {
+  for (const candidate of report.candidates) {
     const card = template.content.cloneNode(true);
     const cardElement = card.querySelector(".fixture-card");
-    cardElement.classList.toggle("no-stats", !fixture.hasStatistics);
-    card.querySelector(".competition").textContent = [fixture.country, fixture.league]
-      .filter(Boolean)
-      .join(" · ");
-    card.querySelector(".teams").textContent = `${fixture.home} vs ${fixture.away}`;
-    card.querySelector(".score").textContent = fixture.score;
-    card.querySelector(".minute").textContent = `${fixture.minute}' ${fixture.status}`;
+    cardElement.classList.add(candidate.side === "OVER_2_5" ? "over" : "under");
+    card.querySelector(".competition").textContent =
+      `${candidate.country} · ${candidate.league}`;
+    card.querySelector(".teams").textContent = `${candidate.home} vs ${candidate.away}`;
+    card.querySelector(".kickoff").textContent = `Kickoff ${formatDateTime(candidate.kickoff)}`;
+    card.querySelector(".label").textContent = candidate.label;
+    card.querySelector(".rank").textContent =
+      `Rank ${candidate.rankScore}/100 · ${candidate.dataQuality} data`;
 
-    const stats = card.querySelector(".stats");
-    const statValues = [
-      ["On target", fixture.statistics.shotsOnTarget],
-      ["Shots", fixture.statistics.totalShots],
-      ["Corners", fixture.statistics.corners],
-      ["Box shots", fixture.statistics.shotsInsideBox]
-    ];
-    for (const [label, value] of statValues) {
-      stats.append(makeStat(label, value));
-    }
-
-    const signals = card.querySelector(".signals");
-    for (const warning of fixture.context?.warnings ?? []) {
-      const warningElement = document.createElement("div");
-      warningElement.className = "context-warning";
-      warningElement.textContent = warning;
-      signals.append(warningElement);
-    }
-    if (!fixture.hasStatistics) {
-      const unavailable = document.createElement("div");
-      unavailable.className = "data-unavailable";
-      unavailable.innerHTML =
-        "<strong>No stats coverage</strong><span>This match is excluded from betting signals.</span>";
-      signals.append(unavailable);
-    } else if (!fixture.signals.length) {
-      signals.textContent = "Monitoring only: no configured market is active.";
-    }
-    for (const signal of fixture.signals) {
-      signals.append(makeSignal(signal));
+    const details = card.querySelector(".details");
+    for (const reason of candidate.reasons) {
+      const item = document.createElement("span");
+      item.textContent = reason;
+      details.append(item);
     }
     fixturesElement.append(card);
   }
 }
 
-function makeStat(label, value) {
-  const element = document.createElement("div");
-  element.innerHTML = `<strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span>`;
-  return element;
+function updateCooldown() {
+  if (!nextAllowedAt) {
+    cooldownElement.textContent = "";
+    generateButton.disabled = false;
+    return;
+  }
+  const remaining = nextAllowedAt.getTime() - Date.now();
+  if (remaining <= 0) {
+    cooldownElement.textContent = "Ready for another list";
+    generateButton.disabled = false;
+    nextAllowedAt = null;
+    return;
+  }
+  const minutes = Math.floor(remaining / 60_000);
+  const seconds = Math.ceil((remaining % 60_000) / 1000);
+  cooldownElement.textContent = `New scan available in ${minutes}:${String(seconds).padStart(2, "0")}`;
+  generateButton.disabled = true;
 }
 
-function makeSignal(signal) {
-  const element = document.createElement("section");
-  element.className = `signal ${signal.level}`;
-  const price = signal.price
-    ? `<span class="price">${escapeHtml(signal.price.side)} ${signal.price.line} @ ${signal.price.odd} · ${escapeHtml(signal.price.bookmaker)}</span>`
-    : `<span class="price muted">No matching live price returned</span>`;
-  element.innerHTML = `
-    <div class="signal-title">
-      <div><span class="level">${escapeHtml(signal.level)}</span><h3>${escapeHtml(signal.label)}</h3></div>
-      <strong class="signal-score">${signal.score}</strong>
-    </div>
-    ${price}
-    <p>${signal.reasons.map(escapeHtml).join(" · ")}</p>
-    <small>${escapeHtml(signal.caution)}</small>
-  `;
-  return element;
+function setLoading(loading) {
+  generateButton.disabled = loading;
+  generateButton.textContent = loading ? "Scanning matches..." : "Generate new list";
+  if (loading) {
+    statusElement.textContent = "Checking fixtures and predictions...";
+    statusElement.className = "";
+  }
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function formatTime(value) {
+  return new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDateTime(value) {
+  return new Date(value).toLocaleString([], {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 loadState();
-setInterval(loadState, 5000);
+setInterval(updateCooldown, 1000);
