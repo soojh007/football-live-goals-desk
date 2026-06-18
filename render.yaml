@@ -35,7 +35,7 @@ services:
     runtime: node
     plan: starter
     region: singapore
-    schedule: "0 23 * * *"
+    schedule: "0 23,3,7,11,15,19 * * *"
     buildCommand: npm test
     startCommand: npm run digest
     autoDeployTrigger: commit
@@ -52,8 +52,10 @@ services:
         value: Football Digest <onboarding@resend.dev>
       - key: DIGEST_TIMEZONE
         value: Asia/Singapore
+      - key: DIGEST_WINDOW_HOURS
+        value: 6
       - key: DIGEST_MAX_ANALYSES
-        value: 40
+        value: 25
       - key: DIGEST_MAX_PICKS
         value: 12
       - key: DIGEST_CONCURRENCY

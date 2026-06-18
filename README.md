@@ -2,7 +2,7 @@
 
 A low-quota API-Football workflow with:
 
-- a daily email of likely over 2.5 and likely under 2.5 matches;
+- rolling emails of likely over 2.5 and likely under 2.5 matches;
 - a protected frontend that generates a list for the next three hours on demand.
 
 Both modes cover many countries by distributing the analysis budget across
@@ -10,14 +10,15 @@ countries instead of using it entirely on the first leagues returned by the API.
 
 ## Request budget
 
-The daily email uses:
+Each rolling email uses:
 
-- one request for all fixtures on the selected date;
+- one fixture request, or two if the six-hour window crosses midnight;
 - up to `DIGEST_MAX_ANALYSES` prediction requests.
 
-The default is therefore at most 41 API requests per day. Fixtures are selected
-round-robin across countries for broad coverage. Results with insufficient data
-are removed before ranking.
+The default is therefore at most 27 API requests per email. There are six
+scheduled emails per day, so the normal cap is about 162 API requests per day.
+Fixtures are selected round-robin across countries for broad coverage. Results
+with insufficient data are removed before ranking.
 
 The frontend uses no API-Football requests while idle. Each button click uses:
 
@@ -45,8 +46,8 @@ npm run digest:dry
 
 This writes:
 
-- `data/digest-YYYY-MM-DD.json`
-- `data/digest-YYYY-MM-DD.html`
+- `data/digest-YYYY-MM-DD-HHMM.json`
+- `data/digest-YYYY-MM-DD-HHMM.html`
 
 Run and email the digest:
 
@@ -80,8 +81,8 @@ probability.
 
 `render.yaml` defines:
 
-- `football-daily-digest`, a Cron Job that runs at `23:00 UTC`, which is
-  `07:00` in Singapore;
+- `football-daily-digest`, a Cron Job that sends at `07:00`, `11:00`,
+  `15:00`, `19:00`, `23:00`, and `03:00` Singapore time;
 - `football-match-finder`, a web service for the on-demand three-hour list.
 
 When the Blueprint sync creates the services, enter:
@@ -98,7 +99,8 @@ separately according to their selected plans.
 
 ## Configuration
 
-- `DIGEST_MAX_ANALYSES=40`: hard cap on prediction calls per run
+- `DIGEST_WINDOW_HOURS=6`: upcoming kickoff window for each email
+- `DIGEST_MAX_ANALYSES=25`: hard cap on prediction calls per email
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
 - `DIGEST_CONCURRENCY=4`: simultaneous prediction requests

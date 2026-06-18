@@ -79,6 +79,7 @@ export function analyzePrediction(fixture, predictionResponse) {
     underOver: prediction.under_over
   });
   const side = overProbability >= 0.5 ? "OVER_2_5" : "UNDER_2_5";
+  const label = side === "OVER_2_5" ? "Likely over 2.5" : "Likely under 2.5";
   const rankScore = Math.round(
     Math.max(overProbability, 1 - overProbability) * 100
   );
@@ -92,7 +93,12 @@ export function analyzePrediction(fixture, predictionResponse) {
     home: fixture.teams.home.name,
     away: fixture.teams.away.name,
     side,
-    label: side === "OVER_2_5" ? "Likely over 2.5" : "Likely under 2.5",
+    label,
+    mainSignal: {
+      market: "Total goals 2.5",
+      pick: side === "OVER_2_5" ? "Over 2.5" : "Under 2.5",
+      label
+    },
     rankScore,
     dataQuality: dataPoints >= 7 ? "high" : dataPoints >= 4 ? "medium" : "limited",
     projectedGoals: projectedGoals === null ? null : round(projectedGoals, 2),

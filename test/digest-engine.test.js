@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   analyzePrediction,
   rankDigestCandidates,
-  selectDigestFixtures
+  selectDigestFixtures,
+  selectUpcomingFixtures
 } from "../src/digest-engine.js";
 
 test("selects fixtures across countries before taking second matches", () => {
@@ -24,6 +25,22 @@ test("selects fixtures across countries before taking second matches", () => {
   );
 });
 
+test("selects only fixtures inside the upcoming digest window", () => {
+  const fixtures = [
+    makeFixture(1, "England", "2026-06-13T09:59:00+08:00"),
+    makeFixture(2, "Japan", "2026-06-13T10:00:00+08:00"),
+    makeFixture(3, "Brazil", "2026-06-13T15:59:00+08:00"),
+    makeFixture(4, "Peru", "2026-06-13T16:01:00+08:00")
+  ];
+  const selected = selectUpcomingFixtures(fixtures, {
+    maxAnalyses: 10,
+    start: new Date("2026-06-13T10:00:00+08:00"),
+    end: new Date("2026-06-13T16:00:00+08:00")
+  });
+
+  assert.deepEqual(selected.map((fixture) => fixture.fixture.id).sort(), [2, 3]);
+});
+
 test("analyses explicit over 2.5 candidate from team goal averages", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Netherlands", "2026-06-13T18:00:00+08:00"),
@@ -38,6 +55,11 @@ test("analyses explicit over 2.5 candidate from team goal averages", () => {
 
   assert.equal(candidate.side, "OVER_2_5");
   assert.equal(candidate.label, "Likely over 2.5");
+  assert.deepEqual(candidate.mainSignal, {
+    market: "Total goals 2.5",
+    pick: "Over 2.5",
+    label: "Likely over 2.5"
+  });
   assert.ok(candidate.projectedGoals > 3);
 });
 

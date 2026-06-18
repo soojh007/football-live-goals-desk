@@ -5,15 +5,18 @@ import { ApiFootballClient } from "./api-football.js";
 import {
   analyzePrediction,
   rankDigestCandidates,
-  selectDigestFixtures
+  selectUpcomingFixtures
 } from "./digest-engine.js";
 import { DigestEmail, renderDigestHtml } from "./digest-email.js";
 
 loadEnv();
 
 const timezone = process.env.DIGEST_TIMEZONE ?? "Asia/Singapore";
-const date = process.env.DIGEST_DATE ?? localDate(new Date(), timezone);
-const maxAnalyses = clampInteger(process.env.DIGEST_MAX_ANALYSES, 40, 1, 100);
+const now = new Date();
+const windowHours = clampInteger(process.env.DIGEST_WINDOW_HOURS, 6, 1, 12);
+const windowEnd = new Date(now.getTime() + windowHours * 60 * 60_000);
+const dates = uniqueLocalDates(now, windowEnd, timezone);
+const maxAnalyses = clampInteger(process.env.DIGEST_MAX_ANALYSES, 25, 1, 100);
 const maxPicks = clampInteger(process.env.DIGEST_MAX_PICKS, 12, 1, 30);
 const concurrency = clampInteger(process.env.DIGEST_CONCURRENCY, 4, 1, 8);
 const dryRun = process.argv.includes("--dry-run");
@@ -24,10 +27,14 @@ const mailer = new DigestEmail({
   from: process.env.DIGEST_EMAIL_FROM ?? process.env.ALERT_EMAIL_FROM
 });
 
-const fixturesResult = await client.getFixturesByDate(date, timezone);
-const selected = selectDigestFixtures(fixturesResult.data, {
+const fixtureResults = await Promise.all(
+  dates.map((date) => client.getFixturesByDate(date, timezone))
+);
+const fixtures = fixtureResults.flatMap((result) => result.data);
+const selected = selectUpcomingFixtures(fixtures, {
   maxAnalyses,
-  now: new Date()
+  start: now,
+  end: windowEnd
 });
 const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
   try {
@@ -41,25 +48,37 @@ const analyses = await mapWithConcurrency(selected, concurrency, async (fixture)
 });
 const candidates = rankDigestCandidates(analyses.filter(Boolean), maxPicks);
 const report = {
-  date,
+  date: localDate(now, timezone),
+  generatedAt: now.toISOString(),
+  windowStart: now.toISOString(),
+  windowEnd: windowEnd.toISOString(),
+  windowHours,
   timezone,
-  fixturesFound: fixturesResult.data.length,
+  fixturesFound: fixtures.length,
+  upcomingFound: selected.length,
   analyzed: selected.length,
-  requestsUsed: 1 + selected.length,
+  requestsUsed: dates.length + selected.length,
   candidates
 };
 
 fs.mkdirSync(path.resolve("data"), { recursive: true });
-const reportPath = path.resolve("data", `digest-${date}.json`);
-const htmlPath = path.resolve("data", `digest-${date}.html`);
+const fileStamp = timestampForFile(now, timezone);
+const reportPath = path.resolve("data", `digest-${fileStamp}.json`);
+const htmlPath = path.resolve("data", `digest-${fileStamp}.html`);
 fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 fs.writeFileSync(htmlPath, renderDigestHtml(report));
 
 if (!dryRun) {
   await mailer.send(report);
-  console.log(`Digest emailed: ${candidates.length} picks from ${selected.length} analyses.`);
+  console.log(
+    `Rolling digest emailed: ${candidates.length} picks from ${selected.length} analyses.`
+  );
 } else {
   console.log(`Dry run complete: ${htmlPath}`);
+}
+
+function uniqueLocalDates(start, end, timeZone) {
+  return [...new Set([localDate(start, timeZone), localDate(end, timeZone)])];
 }
 
 function localDate(value, timeZone) {
@@ -69,6 +88,20 @@ function localDate(value, timeZone) {
     month: "2-digit",
     day: "2-digit"
   }).format(value);
+}
+
+function timestampForFile(value, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(value);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${lookup.year}-${lookup.month}-${lookup.day}-${lookup.hour}${lookup.minute}`;
 }
 
 function clampInteger(value, fallback, minimum, maximum) {
