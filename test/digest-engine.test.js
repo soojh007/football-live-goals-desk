@@ -55,12 +55,55 @@ test("analyses explicit over 2.5 candidate from team goal averages", () => {
 
   assert.equal(candidate.side, "OVER_2_5");
   assert.equal(candidate.label, "Likely over 2.5");
-  assert.deepEqual(candidate.mainSignal, {
+  assert.deepEqual(
+    {
+      market: candidate.mainSignal.market,
+      pick: candidate.mainSignal.pick,
+      label: candidate.mainSignal.label
+    },
+    {
     market: "Total goals 2.5",
     pick: "Over 2.5",
     label: "Likely over 2.5"
-  });
+    }
+  );
   assert.ok(candidate.projectedGoals > 3);
+});
+
+test("can choose 1X2 as the main signal when result edge is stronger", () => {
+  const candidate = analyzePrediction(
+    makeFixture(1, "Japan", "2026-06-13T18:00:00+08:00"),
+    makePrediction({
+      homeFor: 1.1,
+      homeAgainst: 1.1,
+      awayFor: 1.0,
+      awayAgainst: 1.2,
+      underOver: "-3.5",
+      percent: { home: "70%", draw: "16%", away: "14%" },
+      winner: { name: "Home 1", comment: "Win or draw" }
+    })
+  );
+
+  assert.equal(candidate.mainSignal.market, "1X2 match result");
+  assert.equal(candidate.mainSignal.pick, "Home 1");
+});
+
+test("can choose BTTS as the main signal from both teams scoring profile", () => {
+  const candidate = analyzePrediction(
+    makeFixture(1, "Norway", "2026-06-13T18:00:00+08:00"),
+    makePrediction({
+      homeFor: 2.0,
+      homeAgainst: 1.6,
+      awayFor: 1.9,
+      awayAgainst: 1.5,
+      underOver: "",
+      percent: { home: "38%", draw: "28%", away: "34%" },
+      winner: { name: "", comment: "" }
+    })
+  );
+
+  assert.equal(candidate.mainSignal.market, "Both teams to score");
+  assert.equal(candidate.mainSignal.pick, "Yes");
 });
 
 test("analyses explicit under 2.5 candidate from low-scoring teams", () => {
@@ -102,13 +145,21 @@ function makeFixture(id, country, date) {
   };
 }
 
-function makePrediction({ homeFor, homeAgainst, awayFor, awayAgainst, underOver }) {
+function makePrediction({
+  homeFor,
+  homeAgainst,
+  awayFor,
+  awayAgainst,
+  underOver,
+  percent = { home: "45%", draw: "25%", away: "30%" },
+  winner = { name: "Home", comment: "Win or draw" }
+}) {
   return {
     predictions: {
       advice: underOver.startsWith("+") ? "Winner or over 2.5" : "Under 2.5",
       under_over: underOver,
-      percent: { home: "45%", draw: "25%", away: "30%" },
-      winner: { name: "Home", comment: "Win or draw" }
+      percent,
+      winner
     },
     comparison: {
       form: { home: "60%", away: "40%" },

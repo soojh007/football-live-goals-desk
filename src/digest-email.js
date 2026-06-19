@@ -51,7 +51,7 @@ export function renderDigestHtml(report) {
       </td>
       <td style="padding:14px;border-bottom:1px solid #dfe8e3;text-align:right">
         <div style="font-size:11px;color:#61736b;text-transform:uppercase;letter-spacing:.7px">Main signal</div>
-        <div style="font-size:16px;font-weight:800;color:${candidate.side === "OVER_2_5" ? "#087f5b" : "#9a6700"}">${escapeHtml(candidate.mainSignal?.label ?? candidate.label)}</div>
+        <div style="font-size:16px;font-weight:800;color:${signalColor(candidate.mainSignal)}">${escapeHtml(candidate.mainSignal?.label ?? candidate.label)}</div>
         <div style="font-size:12px;color:#43554d">${escapeHtml(candidate.mainSignal?.market ?? "Total goals 2.5")}</div>
         <div style="font-size:12px;color:#61736b">Rank score ${candidate.rankScore}/100 · ${escapeHtml(candidate.dataQuality)} data</div>
       </td>
@@ -88,6 +88,12 @@ function formatWindow(report) {
     report.windowEnd,
     report.timezone
   )}`;
+}
+
+function signalColor(signal) {
+  if (signal?.kind === "RESULT") return "#1f6feb";
+  if (signal?.kind === "BTTS") return signal.pick === "Yes" ? "#087f5b" : "#9a6700";
+  return signal?.pick === "Over 2.5" ? "#087f5b" : "#9a6700";
 }
 
 function formatKickoff(value, timezone) {

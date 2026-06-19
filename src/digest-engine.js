@@ -80,9 +80,20 @@ export function analyzePrediction(fixture, predictionResponse) {
   });
   const side = overProbability >= 0.5 ? "OVER_2_5" : "UNDER_2_5";
   const label = side === "OVER_2_5" ? "Likely over 2.5" : "Likely under 2.5";
-  const rankScore = Math.round(
-    Math.max(overProbability, 1 - overProbability) * 100
-  );
+  const mainSignal = chooseMainSignal({
+    home: fixture.teams.home.name,
+    away: fixture.teams.away.name,
+    totalSide: side,
+    totalLabel: label,
+    overProbability,
+    expectedHomeGoals: goalModel.expectedHomeGoals,
+    expectedAwayGoals: goalModel.expectedAwayGoals,
+    percent,
+    winner: prediction.winner,
+    advice: prediction.advice,
+    underOver: prediction.under_over
+  });
+  const rankScore = mainSignal.score;
   const dataPoints = goalModel.dataPoints + countComparisonSignals(comparison);
 
   return {
@@ -94,11 +105,7 @@ export function analyzePrediction(fixture, predictionResponse) {
     away: fixture.teams.away.name,
     side,
     label,
-    mainSignal: {
-      market: "Total goals 2.5",
-      pick: side === "OVER_2_5" ? "Over 2.5" : "Under 2.5",
-      label
-    },
+    mainSignal,
     rankScore,
     dataQuality: dataPoints >= 7 ? "high" : dataPoints >= 4 ? "medium" : "limited",
     projectedGoals: projectedGoals === null ? null : round(projectedGoals, 2),
@@ -143,6 +150,93 @@ function estimateOver25Probability({ projectedGoals, advice = "", underOver = ""
   return clamp(probability, 0.25, 0.75);
 }
 
+function chooseMainSignal({
+  home,
+  away,
+  totalSide,
+  totalLabel,
+  overProbability,
+  expectedHomeGoals,
+  expectedAwayGoals,
+  percent,
+  winner,
+  advice = "",
+  underOver = ""
+}) {
+  const candidates = [
+    {
+      market: "Total goals 2.5",
+      pick: totalSide === "OVER_2_5" ? "Over 2.5" : "Under 2.5",
+      label: totalLabel,
+      kind: "TOTALS",
+      score: Math.round(Math.max(overProbability, 1 - overProbability) * 100)
+    }
+  ];
+
+  const resultSignal = buildResultSignal({ home, away, percent, winner });
+  if (resultSignal) candidates.push(resultSignal);
+
+  const bttsSignal = buildBttsSignal({ expectedHomeGoals, expectedAwayGoals });
+  if (bttsSignal) candidates.push(bttsSignal);
+
+  const text = `${advice} ${underOver}`.toLowerCase();
+  for (const candidate of candidates) {
+    if (candidate.kind === "RESULT" && text.includes(candidate.pick.toLowerCase())) {
+      candidate.score += 3;
+    }
+    if (candidate.kind === "TOTALS" && text.includes(candidate.pick.toLowerCase())) {
+      candidate.score += 3;
+    }
+  }
+
+  return candidates
+    .map((candidate) => ({ ...candidate, score: clamp(candidate.score, 25, 78) }))
+    .sort((a, b) => b.score - a.score)[0];
+}
+
+function buildResultSignal({ home, away, percent, winner }) {
+  const options = [
+    { key: "home", label: `Likely ${home} win`, pick: home },
+    { key: "draw", label: "Likely draw", pick: "Draw" },
+    { key: "away", label: `Likely ${away} win`, pick: away }
+  ].map((option) => ({ ...option, score: percentageNumber(percent[option.key]) }));
+  options.sort((a, b) => b.score - a.score);
+  const [best, next] = options;
+  const winnerName = winner?.name ?? "";
+  const winnerMatches =
+    winnerName &&
+    (normalizeName(winnerName) === normalizeName(home) ||
+      normalizeName(winnerName) === normalizeName(away));
+
+  if (best.score < 50 && !winnerMatches) return null;
+  if (best.score - next.score < 8 && !winnerMatches) return null;
+  if (winnerMatches && normalizeName(winnerName) !== normalizeName(best.pick)) return null;
+
+  return {
+    market: "1X2 match result",
+    pick: best.pick,
+    label: best.label,
+    kind: "RESULT",
+    score: winnerMatches ? best.score + 10 : best.score
+  };
+}
+
+function buildBttsSignal({ expectedHomeGoals, expectedAwayGoals }) {
+  if (expectedHomeGoals === null || expectedAwayGoals === null) return null;
+  const yesProbability = (1 - Math.exp(-expectedHomeGoals)) * (1 - Math.exp(-expectedAwayGoals));
+  const noProbability = 1 - yesProbability;
+  const isYes = yesProbability >= noProbability;
+  const score = Math.round(Math.max(yesProbability, noProbability) * 100);
+  if (score < 62) return null;
+  return {
+    market: "Both teams to score",
+    pick: isYes ? "Yes" : "No",
+    label: isYes ? "Likely BTTS yes" : "Likely BTTS no",
+    kind: "BTTS",
+    score
+  };
+}
+
 function calculateProjectedGoals(response) {
   const teams = response?.teams ?? {};
   const metrics = [];
@@ -170,12 +264,17 @@ function calculateProjectedGoals(response) {
   if (homeExpected !== null && awayExpected !== null) {
     return {
       projectedGoals: homeExpected + awayExpected,
+      expectedHomeGoals: homeExpected,
+      expectedAwayGoals: awayExpected,
       dataPoints: metrics.length
     };
   }
   const averageTeamGoals = average(metrics);
+  const projectedGoals = averageTeamGoals === null ? null : averageTeamGoals * 2;
   return {
-    projectedGoals: averageTeamGoals === null ? null : averageTeamGoals * 2,
+    projectedGoals,
+    expectedHomeGoals: projectedGoals === null ? null : projectedGoals / 2,
+    expectedAwayGoals: projectedGoals === null ? null : projectedGoals / 2,
     dataPoints: metrics.length
   };
 }
@@ -203,6 +302,15 @@ function parsePercentages(percent = {}) {
     draw: percent.draw ?? "",
     away: percent.away ?? ""
   };
+}
+
+function percentageNumber(value) {
+  const parsed = Number.parseFloat(String(value ?? "").replace("%", ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeName(value) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 function countComparisonSignals(comparison) {

@@ -4,7 +4,8 @@ import { DigestEmail, renderDigestHtml } from "../src/digest-email.js";
 
 test("renders explicit over and under lines in one digest", () => {
   const html = renderDigestHtml(makeReport());
-  assert.match(html, /Likely over 2\.5/);
+  assert.match(html, /Likely BTTS yes/);
+  assert.match(html, /Both teams to score/);
   assert.match(html, /Main signal/);
   assert.match(html, /Next 6 Hours/);
   assert.match(html, /12 API requests/);
@@ -46,9 +47,11 @@ function makeReport() {
         side: "OVER_2_5",
         label: "Likely over 2.5",
         mainSignal: {
-          market: "Total goals 2.5",
-          pick: "Over 2.5",
-          label: "Likely over 2.5"
+          market: "Both teams to score",
+          pick: "Yes",
+          label: "Likely BTTS yes",
+          kind: "BTTS",
+          score: 69
         },
         rankScore: 68,
         dataQuality: "high",

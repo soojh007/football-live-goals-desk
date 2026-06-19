@@ -74,8 +74,15 @@ The model combines:
 - prediction comparison coverage;
 - an expected-goals total converted into an over 2.5 probability.
 
+The main signal can be:
+
+- `Total goals 2.5`: likely over or under 2.5
+- `1X2 match result`: likely home win, draw, or away win
+- `Both teams to score`: likely BTTS yes or no
+
 The final score is a ranking heuristic, not a guaranteed result or calibrated
-probability.
+probability. BTTS is inferred from the team goal model unless bookmaker odds are
+added later.
 
 ## Render
 
