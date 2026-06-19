@@ -29,6 +29,7 @@ button:disabled { opacity: .5; cursor: wait; }
 .fixture-card { background: color-mix(in srgb, var(--panel) 95%, transparent); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: 0 16px 50px rgba(0,0,0,.16); }
 .fixture-card.over { border-left-color: var(--green); }
 .fixture-card.under { border-left-color: var(--amber); }
+.fixture-card.result { border-left-color: #58a6ff; }
 .fixture-head { display: flex; justify-content: space-between; align-items: start; gap: 24px; }
 .competition { color: var(--muted); font-size: .7rem; letter-spacing: .08em; margin: 0 0 7px; text-transform: uppercase; }
 h2 { font-size: 1.25rem; margin: 0; }
@@ -38,6 +39,7 @@ h2 { font-size: 1.25rem; margin: 0; }
 .verdict strong { font-size: 1.05rem; }
 .over .verdict strong { color: var(--green); }
 .under .verdict strong { color: var(--amber); }
+.result .verdict strong { color: #58a6ff; }
 .verdict span { color: var(--muted); font-size: .72rem; margin-top: 5px; }
 .details { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
 .details span { background: #0a1511; border-radius: 999px; color: #b5c5bf; font-size: .72rem; padding: 7px 10px; }

@@ -62,14 +62,20 @@ function render(state) {
   for (const candidate of report.candidates) {
     const card = template.content.cloneNode(true);
     const cardElement = card.querySelector(".fixture-card");
-    cardElement.classList.add(candidate.side === "OVER_2_5" ? "over" : "under");
+    const signal = candidate.mainSignal ?? {
+      market: "Total goals 2.5",
+      label: candidate.label,
+      pick: candidate.side === "OVER_2_5" ? "Over 2.5" : "Under 2.5",
+      kind: "TOTALS"
+    };
+    cardElement.classList.add(signalClass(signal));
     card.querySelector(".competition").textContent =
       `${candidate.country} · ${candidate.league}`;
     card.querySelector(".teams").textContent = `${candidate.home} vs ${candidate.away}`;
     card.querySelector(".kickoff").textContent = `Kickoff ${formatDateTime(candidate.kickoff)}`;
-    card.querySelector(".label").textContent = candidate.label;
+    card.querySelector(".label").textContent = signal.label;
     card.querySelector(".rank").textContent =
-      `Rank ${candidate.rankScore}/100 · ${candidate.dataQuality} data`;
+      `${signal.market} · Rank ${candidate.rankScore}/100 · ${candidate.dataQuality} data`;
 
     const details = card.querySelector(".details");
     for (const reason of candidate.reasons) {
@@ -107,6 +113,12 @@ function setLoading(loading) {
     statusElement.textContent = "Checking fixtures and predictions...";
     statusElement.className = "";
   }
+}
+
+function signalClass(signal) {
+  if (signal.kind === "RESULT") return "result";
+  if (signal.kind === "BTTS") return signal.pick === "Yes" ? "over" : "under";
+  return signal.pick === "Over 2.5" ? "over" : "under";
 }
 
 function formatTime(value) {
