@@ -1,35 +1,4 @@
 services:
-  - type: web
-    name: football-match-finder
-    runtime: node
-    plan: starter
-    region: singapore
-    buildCommand: npm test
-    startCommand: npm start
-    healthCheckPath: /health
-    autoDeployTrigger: commit
-    envVars:
-      - key: NODE_VERSION
-        value: 22
-      - key: API_FOOTBALL_KEY
-        sync: false
-      - key: DASHBOARD_USERNAME
-        sync: false
-      - key: DASHBOARD_PASSWORD
-        sync: false
-      - key: DIGEST_TIMEZONE
-        value: Asia/Singapore
-      - key: SHORTLIST_WINDOW_HOURS
-        value: 3
-      - key: SHORTLIST_MAX_ANALYSES
-        value: 15
-      - key: SHORTLIST_MAX_PICKS
-        value: 10
-      - key: SHORTLIST_COOLDOWN_MINUTES
-        value: 15
-      - key: DIGEST_CONCURRENCY
-        value: 4
-
   - type: cron
     name: football-daily-digest
     runtime: node
@@ -60,3 +29,34 @@ services:
         value: 12
       - key: DIGEST_CONCURRENCY
         value: 4
+
+  - type: cron
+    name: football-live-alerts
+    runtime: node
+    plan: starter
+    region: singapore
+    schedule: "*/5 * * * *"
+    buildCommand: npm test
+    startCommand: npm run live-alerts
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ALERT_EMAIL_TO
+        sync: false
+      - key: ALERT_EMAIL_FROM
+        value: Live Goals Desk <onboarding@resend.dev>
+      - key: ALERT_MIN_LEVEL
+        value: watch
+      - key: ALERT_COOLDOWN_MINUTES
+        value: 90
+      - key: STATISTICS_REFRESH_SECONDS
+        value: 120
+      - key: UNAVAILABLE_RETRY_SECONDS
+        value: 900
+      - key: ODDS_REFRESH_SECONDS
+        value: 300

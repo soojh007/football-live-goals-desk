@@ -41,6 +41,25 @@ test("selects only fixtures inside the upcoming digest window", () => {
   assert.deepEqual(selected.map((fixture) => fixture.fixture.id).sort(), [2, 3]);
 });
 
+test("selects only fixtures from configured digest countries", () => {
+  const fixtures = [
+    makeFixture(1, "Japan", "2026-06-13T10:00:00+08:00"),
+    makeFixture(2, "Germany", "2026-06-13T11:00:00+08:00"),
+    makeFixture(3, "South-Korea", "2026-06-13T12:00:00+08:00")
+  ];
+  const selected = selectUpcomingFixtures(fixtures, {
+    maxAnalyses: 10,
+    start: new Date("2026-06-13T09:00:00+08:00"),
+    end: new Date("2026-06-13T13:00:00+08:00"),
+    countries: ["Japan", "South-Korea"]
+  });
+
+  assert.deepEqual(
+    selected.map((fixture) => fixture.league.country).sort(),
+    ["Japan", "South-Korea"]
+  );
+});
+
 test("analyses explicit over 2.5 candidate from team goal averages", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Netherlands", "2026-06-13T18:00:00+08:00"),
@@ -70,16 +89,16 @@ test("analyses explicit over 2.5 candidate from team goal averages", () => {
   assert.ok(candidate.projectedGoals > 3);
 });
 
-test("can choose 1X2 as the main signal when result edge is stronger", () => {
+test("uses 1X2 as the main signal when the predictions API gives a result edge", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Japan", "2026-06-13T18:00:00+08:00"),
     makePrediction({
-      homeFor: 1.1,
-      homeAgainst: 1.1,
-      awayFor: 1.0,
-      awayAgainst: 1.2,
-      underOver: "-3.5",
-      percent: { home: "70%", draw: "16%", away: "14%" },
+      homeFor: 2.4,
+      homeAgainst: 1.6,
+      awayFor: 1.8,
+      awayAgainst: 1.5,
+      underOver: "+2.5",
+      percent: { home: "58%", draw: "23%", away: "19%" },
       winner: { name: "Home 1", comment: "Win or draw" }
     })
   );
@@ -88,7 +107,7 @@ test("can choose 1X2 as the main signal when result edge is stronger", () => {
   assert.equal(candidate.mainSignal.pick, "Home 1");
 });
 
-test("can choose BTTS as the main signal from both teams scoring profile", () => {
+test("does not use BTTS as a digest signal", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Norway", "2026-06-13T18:00:00+08:00"),
     makePrediction({
@@ -102,8 +121,8 @@ test("can choose BTTS as the main signal from both teams scoring profile", () =>
     })
   );
 
-  assert.equal(candidate.mainSignal.market, "Both teams to score");
-  assert.equal(candidate.mainSignal.pick, "Yes");
+  assert.notEqual(candidate.mainSignal.market, "Both teams to score");
+  assert.equal(candidate.mainSignal.market, "Total goals 2.5");
 });
 
 test("analyses explicit under 2.5 candidate from low-scoring teams", () => {
@@ -123,12 +142,12 @@ test("analyses explicit under 2.5 candidate from low-scoring teams", () => {
   assert.ok(candidate.projectedGoals < 2);
 });
 
-test("ranks higher-quality candidates first and respects output limit", () => {
+test("ranks candidates by kickoff time before quality and score", () => {
   const ranked = rankDigestCandidates([
-    { rankScore: 75, dataQuality: "medium" },
-    { rankScore: 60, dataQuality: "high" },
-    { rankScore: 74, dataQuality: "limited" },
-    { rankScore: 70, dataQuality: "high" }
+    { kickoff: "2026-06-13T13:00:00+08:00", rankScore: 75, dataQuality: "medium" },
+    { kickoff: "2026-06-13T12:00:00+08:00", rankScore: 60, dataQuality: "high" },
+    { kickoff: "2026-06-13T10:00:00+08:00", rankScore: 74, dataQuality: "limited" },
+    { kickoff: "2026-06-13T11:00:00+08:00", rankScore: 70, dataQuality: "high" }
   ], 2);
 
   assert.deepEqual(ranked.map((item) => item.rankScore), [70, 60]);

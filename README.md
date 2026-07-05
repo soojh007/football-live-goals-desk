@@ -2,11 +2,13 @@
 
 A low-quota API-Football workflow with:
 
-- rolling emails of likely over 2.5 and likely under 2.5 matches;
-- a protected frontend that generates a list for the next three hours on demand.
+- rolling cron emails of likely 1X2 match-result picks from the Predictions API;
+- five-minute cron scans for in-game goal alerts.
 
-Both modes cover many countries by distributing the analysis budget across
-countries instead of using it entirely on the first leagues returned by the API.
+The digest only covers China, Japan, South-Korea, Australia, Sweden, Finland,
+Iceland, and Ireland. Fixtures are selected round-robin across those countries
+instead of using the analysis budget entirely on the first leagues returned by
+the API.
 
 ## Request budget
 
@@ -17,16 +19,13 @@ Each rolling email uses:
 
 The default is therefore at most 27 API requests per email. There are six
 scheduled emails per day, so the normal cap is about 162 API requests per day.
-Fixtures are selected round-robin across countries for broad coverage. Results
-with insufficient data are removed before ranking.
+Results with insufficient data are removed before ranking.
 
-The frontend uses no API-Football requests while idle. Each button click uses:
+Each live-alert scan uses:
 
-- one fixture request, or two if the three-hour window crosses midnight;
-- up to `SHORTLIST_MAX_ANALYSES` prediction requests.
-
-The default is at most 17 requests per generated list. The result is cached and
-the button is locked for 15 minutes.
+- one live fixtures request;
+- one statistics request per focused live match inside the configured windows;
+- one live-odds request for matches with actionable signals.
 
 ## Local setup
 
@@ -55,34 +54,33 @@ Run and email the digest:
 npm run digest
 ```
 
-Open the frontend:
+Run one in-game alert scan:
 
 ```sh
-npm start
+npm run live-alerts
 ```
-
-Then visit `http://localhost:3000`. Click **Generate new list** when you want to
-spend the request budget.
 
 ## Ranking
 
-The model combines:
+The digest model combines:
 
+- API-Football prediction percentages for home/draw/away;
+- API-Football predicted winner and advice;
 - home and away scoring averages;
 - home and away concession averages;
 - API-Football prediction advice and over/under view;
 - prediction comparison coverage;
 - an expected-goals total converted into an over 2.5 probability.
 
-The main signal can be:
+The digest main signal focuses on:
 
-- `Total goals 2.5`: likely over or under 2.5
 - `1X2 match result`: likely home win, draw, or away win
-- `Both teams to score`: likely BTTS yes or no
+
+If the Predictions API does not provide a usable 1X2 edge, the digest can fall
+back to `Total goals 2.5`. BTTS is not used as an email signal.
 
 The final score is a ranking heuristic, not a guaranteed result or calibrated
-probability. BTTS is inferred from the team goal model unless bookmaker odds are
-added later.
+probability.
 
 ## Render
 
@@ -90,19 +88,16 @@ added later.
 
 - `football-daily-digest`, a Cron Job that sends at `07:00`, `11:00`,
   `15:00`, `19:00`, `23:00`, and `03:00` Singapore time;
-- `football-match-finder`, a web service for the on-demand three-hour list.
+- `football-live-alerts`, a Cron Job that scans every five minutes and emails
+  qualifying in-game signals.
 
-When the Blueprint sync creates the services, enter:
+When the Blueprint sync creates the cron job, enter:
 
 - `API_FOOTBALL_KEY`
 - `RESEND_API_KEY`
 - `ALERT_EMAIL_TO`
-- `DASHBOARD_USERNAME`
-- `DASHBOARD_PASSWORD`
 
-The Resend variables are needed only by the cron job. The dashboard username
-and password protect the frontend. Render web services and cron jobs are billed
-separately according to their selected plans.
+No web service is required for the cron digest.
 
 ## Configuration
 
@@ -110,11 +105,13 @@ separately according to their selected plans.
 - `DIGEST_MAX_ANALYSES=25`: hard cap on prediction calls per email
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
+- `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
 - `DIGEST_CONCURRENCY=4`: simultaneous prediction requests
-- `SHORTLIST_WINDOW_HOURS=3`: upcoming kickoff window, clamped to 2-3 hours
-- `SHORTLIST_MAX_ANALYSES=15`: prediction-call cap per button click
-- `SHORTLIST_MAX_PICKS=10`: maximum cards shown on the frontend
-- `SHORTLIST_COOLDOWN_MINUTES=15`: minimum time between scans
+- `ALERT_MIN_LEVEL=watch`: minimum in-game signal level to email
+- `ALERT_COOLDOWN_MINUTES=90`: Resend idempotency bucket for duplicate live alerts
+- `STATISTICS_REFRESH_SECONDS=120`: live statistics cache setting used within one scan
+- `UNAVAILABLE_RETRY_SECONDS=900`: retry setting for matches without statistics
+- `ODDS_REFRESH_SECONDS=300`: live odds refresh setting used within one scan
 
 ## Tests
 

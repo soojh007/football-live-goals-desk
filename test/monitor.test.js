@@ -71,10 +71,80 @@ test("removes cached halftime signal immediately after a goal", async () => {
   );
 });
 
-function makeFixture() {
+test("orders live fixtures by match time before signal score", async () => {
+  const client = {
+    async getLiveFixtures() {
+      return {
+        data: [
+          makeFixture({ id: 123, minute: 30 }),
+          makeFixture({ id: 456, minute: 40 })
+        ],
+        remaining: "7000"
+      };
+    },
+    async getFixtureStatistics(fixtureId) {
+      return {
+        data: fixtureId === 123 ? makeStatistics() : makeQuietStatistics()
+      };
+    },
+    async getLiveOdds() {
+      return { data: [] };
+    }
+  };
+  const monitor = new LiveMonitor({
+    client,
+    store: { append() {} },
+    configPath: new URL("../config.json", import.meta.url),
+    statisticsRefreshSeconds: 120
+  });
+
+  await monitor.poll();
+
+  assert.deepEqual(
+    monitor.state.fixtures.map((fixture) => fixture.fixtureId),
+    [456, 123]
+  );
+});
+
+test("monitors only configured live countries", async () => {
+  const calls = { statistics: [] };
+  const client = {
+    async getLiveFixtures() {
+      return {
+        data: [
+          makeFixture({ id: 123, country: "Japan" }),
+          makeFixture({ id: 456, country: "Germany" })
+        ],
+        remaining: "7000"
+      };
+    },
+    async getFixtureStatistics(fixtureId) {
+      calls.statistics.push(fixtureId);
+      return { data: makeStatistics() };
+    },
+    async getLiveOdds() {
+      return { data: [] };
+    }
+  };
+  const monitor = new LiveMonitor({
+    client,
+    store: { append() {} },
+    configPath: new URL("../config.json", import.meta.url)
+  });
+
+  await monitor.poll();
+
+  assert.deepEqual(calls.statistics, [123]);
+  assert.deepEqual(
+    monitor.state.fixtures.map((fixture) => fixture.country),
+    ["Japan"]
+  );
+});
+
+function makeFixture({ id = 123, minute = 36, country = "Japan" } = {}) {
   return {
-    fixture: { id: 123, status: { elapsed: 36, short: "1H" } },
-    league: { name: "Test League", country: "Test" },
+    fixture: { id, status: { elapsed: minute, short: "1H" } },
+    league: { name: "Test League", country },
     teams: { home: { name: "Home" }, away: { name: "Away" } },
     goals: { home: 0, away: 0 }
   };
@@ -96,6 +166,27 @@ function makeStatistics() {
         { type: "Total Shots", value: 5 },
         { type: "Corner Kicks", value: 2 },
         { type: "Shots insidebox", value: 3 }
+      ]
+    }
+  ];
+}
+
+function makeQuietStatistics() {
+  return [
+    {
+      statistics: [
+        { type: "Shots on Goal", value: 1 },
+        { type: "Total Shots", value: 2 },
+        { type: "Corner Kicks", value: 0 },
+        { type: "Shots insidebox", value: 1 }
+      ]
+    },
+    {
+      statistics: [
+        { type: "Shots on Goal", value: 0 },
+        { type: "Total Shots", value: 1 },
+        { type: "Corner Kicks", value: 0 },
+        { type: "Shots insidebox", value: 0 }
       ]
     }
   ];

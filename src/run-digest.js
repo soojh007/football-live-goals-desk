@@ -11,7 +11,8 @@ import { DigestEmail, renderDigestHtml } from "./digest-email.js";
 
 loadEnv();
 
-const timezone = process.env.DIGEST_TIMEZONE ?? "Asia/Singapore";
+const config = readConfig();
+const timezone = process.env.DIGEST_TIMEZONE ?? config.timezone ?? "Asia/Singapore";
 const now = new Date();
 const windowHours = clampInteger(process.env.DIGEST_WINDOW_HOURS, 6, 1, 12);
 const windowEnd = new Date(now.getTime() + windowHours * 60 * 60_000);
@@ -34,7 +35,8 @@ const fixtures = fixtureResults.flatMap((result) => result.data);
 const selected = selectUpcomingFixtures(fixtures, {
   maxAnalyses,
   start: now,
-  end: windowEnd
+  end: windowEnd,
+  countries: configuredCountries()
 });
 const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
   try {
@@ -79,6 +81,21 @@ if (!dryRun) {
 
 function uniqueLocalDates(start, end, timeZone) {
   return [...new Set([localDate(start, timeZone), localDate(end, timeZone)])];
+}
+
+function readConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(path.resolve("config.json"), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function configuredCountries() {
+  if (process.env.DIGEST_COUNTRIES) {
+    return process.env.DIGEST_COUNTRIES.split(",").map((country) => country.trim());
+  }
+  return config.digestCountries ?? [];
 }
 
 function localDate(value, timeZone) {

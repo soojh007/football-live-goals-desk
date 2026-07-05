@@ -2,10 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DigestEmail, renderDigestHtml } from "../src/digest-email.js";
 
-test("renders explicit over and under lines in one digest", () => {
+test("renders 1X2 prediction signals in one digest", () => {
   const html = renderDigestHtml(makeReport());
-  assert.match(html, /Likely BTTS yes/);
-  assert.match(html, /Both teams to score/);
+  assert.match(html, /Likely Home win/);
+  assert.match(html, /1X2 match result/);
+  assert.doesNotMatch(html, /Both teams to score/);
   assert.match(html, /Main signal/);
   assert.match(html, /Next 6 Hours/);
   assert.match(html, /12 API requests/);
@@ -47,15 +48,15 @@ function makeReport() {
         side: "OVER_2_5",
         label: "Likely over 2.5",
         mainSignal: {
-          market: "Both teams to score",
-          pick: "Yes",
-          label: "Likely BTTS yes",
-          kind: "BTTS",
-          score: 69
+          market: "1X2 match result",
+          pick: "Home",
+          label: "Likely Home win",
+          kind: "RESULT",
+          score: 68
         },
         rankScore: 68,
         dataQuality: "high",
-        reasons: ["Modelled total: 3.1 goals"]
+        reasons: ["Result split: 58%/23%/19%"]
       }
     ]
   };

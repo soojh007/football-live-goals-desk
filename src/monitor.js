@@ -118,9 +118,10 @@ export class LiveMonitor {
       });
 
       let alertError = null;
+      let alertResults = [];
       if (this.alerts) {
         try {
-          await this.alerts.notify(details);
+          alertResults = await this.alerts.notify(details);
         } catch (error) {
           alertError = error.message;
         }
@@ -134,6 +135,7 @@ export class LiveMonitor {
         alerts: {
           enabled: Boolean(this.alerts?.enabled),
           lastResult: this.alerts?.lastResult ?? null,
+          sent: alertResults.length,
           error: alertError
         },
         fixtures: details.sort(sortFixtures)
@@ -185,11 +187,19 @@ function pruneFixtureCache(cache, activeFixtureIds) {
 function isRelevantFixture(fixture, config) {
   const minute = Number(fixture.fixture?.status?.elapsed ?? 0);
   const status = fixture.fixture?.status?.short;
+  const countries = new Set((config.liveCountries ?? []).map(normalizeCountry));
+  const country = normalizeCountry(fixture.league?.country);
+  const countryAllowed = !countries.size || countries.has(country);
   return (
+    countryAllowed &&
     ["1H", "HT", "2H"].includes(status) &&
     minute >= Math.min(config.halftimeOver05.startMinute, config.totalGoals.startMinute) &&
     minute <= Math.max(config.halftimeOver05.endMinute, config.totalGoals.endMinute)
   );
+}
+
+function normalizeCountry(value) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {
@@ -212,5 +222,5 @@ async function mapWithConcurrency(items, concurrency, mapper) {
 function sortFixtures(a, b) {
   const aBest = Math.max(0, ...a.signals.map((signal) => signal.score));
   const bBest = Math.max(0, ...b.signals.map((signal) => signal.score));
-  return bBest - aBest || b.minute - a.minute;
+  return b.minute - a.minute || bBest - aBest;
 }

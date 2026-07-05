@@ -1,5 +1,25 @@
 {
   "timezone": "Asia/Singapore",
+  "liveCountries": [
+    "China",
+    "Japan",
+    "South-Korea",
+    "Australia",
+    "Sweden",
+    "Finland",
+    "Iceland",
+    "Ireland"
+  ],
+  "digestCountries": [
+    "China",
+    "Japan",
+    "South-Korea",
+    "Australia",
+    "Sweden",
+    "Finland",
+    "Iceland",
+    "Ireland"
+  ],
   "minimumSignalScore": 58,
   "halftimeOver05": {
     "enabled": true,
