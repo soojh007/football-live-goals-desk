@@ -43,24 +43,29 @@ export class DigestEmail {
 
 export function renderDigestHtml(report) {
   const cards = report.candidates.map((candidate) => `
-    <tr>
-      <td style="padding:14px;border-bottom:1px solid #dfe8e3">
-        <div style="font-size:12px;color:#61736b;text-transform:uppercase">${escapeHtml(candidate.country)} · ${escapeHtml(candidate.league)}</div>
-        <div style="font-size:17px;font-weight:700;margin:5px 0">${escapeHtml(candidate.home)} vs ${escapeHtml(candidate.away)}</div>
-        <div style="font-size:12px;color:#61736b">${escapeHtml(formatKickoff(candidate.kickoff, report.timezone))}</div>
-      </td>
-      <td style="padding:14px;border-bottom:1px solid #dfe8e3;text-align:right">
-        <div style="font-size:11px;color:#61736b;text-transform:uppercase;letter-spacing:.7px">Main signal</div>
-        <div style="font-size:16px;font-weight:800;color:${signalColor(candidate.mainSignal)}">${escapeHtml(candidate.mainSignal?.label ?? candidate.label)}</div>
-        <div style="font-size:12px;color:#43554d">${escapeHtml(candidate.mainSignal?.market ?? "Total goals 2.5")}</div>
-        <div style="font-size:12px;color:#61736b">Rank score ${candidate.rankScore}/100 · ${escapeHtml(candidate.dataQuality)} data</div>
-      </td>
-    </tr>
-    <tr>
-      <td colspan="2" style="padding:0 14px 14px;color:#43554d;font-size:13px">
-        ${candidate.reasons.map(escapeHtml).join(" · ")}
-      </td>
-    </tr>`).join("");
+    <div style="border:1px solid #d9e5df;border-radius:8px;background:#ffffff;margin:14px 0;overflow:hidden">
+      <div style="padding:16px 18px 14px">
+        <table role="presentation" style="border-collapse:collapse;width:100%">
+          <tr>
+            <td style="vertical-align:top;padding:0 12px 0 0">
+              <div style="font-size:12px;line-height:1.35;color:#61736b;text-transform:uppercase;letter-spacing:.5px">${escapeHtml(candidate.country)} · ${escapeHtml(candidate.league)}</div>
+              <div style="font-size:18px;line-height:1.25;font-weight:700;margin:6px 0;color:#102019">${escapeHtml(candidate.home)} vs ${escapeHtml(candidate.away)}</div>
+              <div style="font-size:13px;color:#61736b">${escapeHtml(formatKickoff(candidate.kickoff, report.timezone))}</div>
+            </td>
+            <td style="vertical-align:top;text-align:right;width:38%;padding:0">
+              <div style="font-size:11px;color:#61736b;text-transform:uppercase;letter-spacing:.7px">Main signal</div>
+              <div style="font-size:17px;line-height:1.2;font-weight:800;color:${signalColor(candidate.mainSignal)}">${escapeHtml(candidate.mainSignal?.label ?? candidate.label)}</div>
+              <div style="font-size:13px;line-height:1.35;color:#43554d;margin-top:4px">${escapeHtml(candidate.mainSignal?.market ?? "Total goals 2.5")}</div>
+              <div style="font-size:12px;line-height:1.35;color:#61736b">Rank score ${candidate.rankScore}/100 · ${escapeHtml(candidate.dataQuality)} data</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+      <div style="border-top:1px solid #edf3f0;background:#fbfdfc;padding:12px 18px 14px">
+        <div style="font-size:11px;color:#61736b;text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px">Why this pick</div>
+        <div style="color:#43554d;font-size:13px;line-height:1.45">${candidate.reasons.map(escapeHtml).join(" · ")}</div>
+      </div>
+    </div>`).join("");
 
   return `<!doctype html>
 <html>
@@ -71,9 +76,9 @@ export function renderDigestHtml(report) {
         <h1 style="margin:8px 0 4px">Next ${escapeHtml(report.windowHours ?? 6)} Hours</h1>
         <div style="color:#a9beb5">${escapeHtml(formatWindow(report))} · ${report.analyzed} matches analysed · ${report.requestsUsed} API requests</div>
       </div>
-      <table role="presentation" style="border-collapse:collapse;width:100%;background:white">
-        ${cards || '<tr><td style="padding:24px">No candidates passed the data-quality filter.</td></tr>'}
-      </table>
+      <div style="background:#f7faf8;padding:2px 14px 16px">
+        ${cards || '<div style="padding:24px;background:white;border:1px solid #d9e5df;border-radius:8px">No candidates passed the data-quality filter.</div>'}
+      </div>
       <div style="padding:16px;background:#e8efeb;color:#61736b;font-size:12px;border-radius:0 0 14px 14px">
         Rankings are model-based decision support, not guaranteed outcomes or calibrated probabilities.
       </div>

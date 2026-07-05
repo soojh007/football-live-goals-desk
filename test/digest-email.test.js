@@ -8,6 +8,8 @@ test("renders 1X2 prediction signals in one digest", () => {
   assert.match(html, /1X2 match result/);
   assert.doesNotMatch(html, /Both teams to score/);
   assert.match(html, /Main signal/);
+  assert.match(html, /Why this pick/);
+  assert.match(html, /border:1px solid #d9e5df/);
   assert.match(html, /Next 6 Hours/);
   assert.match(html, /12 API requests/);
 });
