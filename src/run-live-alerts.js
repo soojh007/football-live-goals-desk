@@ -44,6 +44,7 @@ console.log(
     `${state.alerts.sent ?? 0} emails sent`,
     `alerts ${state.alerts.enabled ? "enabled" : "disabled"}`,
     `countries ${(config.liveCountries ?? []).join(", ") || "all"}`,
+    `leagues ${(config.liveLeagues ?? []).join(", ") || "all"}`,
     `requests left ${state.remainingRequests ?? "unknown"}`
   ].join(" · ")
 );

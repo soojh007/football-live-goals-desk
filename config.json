@@ -8,7 +8,21 @@
     "Sweden",
     "Finland",
     "Iceland",
-    "Ireland"
+    "Ireland",
+    "USA",
+    "England",
+    "Spain",
+    "Germany",
+    "Italy",
+    "Netherlands",
+    "France"
+  ],
+  "liveLeagues": [
+    "World Cup",
+    "Euro Championship",
+    "UEFA Champions League",
+    "UEFA Europa League",
+    "UEFA Europa Conference League"
   ],
   "digestCountries": [
     "China",
@@ -18,7 +32,21 @@
     "Sweden",
     "Finland",
     "Iceland",
-    "Ireland"
+    "Ireland",
+    "USA",
+    "England",
+    "Spain",
+    "Germany",
+    "Italy",
+    "Netherlands",
+    "France"
+  ],
+  "digestLeagues": [
+    "World Cup",
+    "Euro Championship",
+    "UEFA Champions League",
+    "UEFA Europa League",
+    "UEFA Europa Conference League"
   ],
   "minimumSignalScore": 58,
   "halftimeOver05": {

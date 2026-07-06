@@ -187,18 +187,27 @@ function pruneFixtureCache(cache, activeFixtureIds) {
 function isRelevantFixture(fixture, config) {
   const minute = Number(fixture.fixture?.status?.elapsed ?? 0);
   const status = fixture.fixture?.status?.short;
-  const countries = new Set((config.liveCountries ?? []).map(normalizeCountry));
-  const country = normalizeCountry(fixture.league?.country);
-  const countryAllowed = !countries.size || countries.has(country);
+  const filters = {
+    countries: new Set((config.liveCountries ?? []).map(normalizeFilterValue)),
+    leagues: new Set((config.liveLeagues ?? []).map(normalizeFilterValue))
+  };
   return (
-    countryAllowed &&
+    fixtureAllowed(fixture, filters) &&
     ["1H", "HT", "2H"].includes(status) &&
     minute >= Math.min(config.halftimeOver05.startMinute, config.totalGoals.startMinute) &&
     minute <= Math.max(config.halftimeOver05.endMinute, config.totalGoals.endMinute)
   );
 }
 
-function normalizeCountry(value) {
+function fixtureAllowed(fixture, filters) {
+  if (!filters.countries.size && !filters.leagues.size) return true;
+  return (
+    filters.countries.has(normalizeFilterValue(fixture.league?.country)) ||
+    filters.leagues.has(normalizeFilterValue(fixture.league?.name))
+  );
+}
+
+function normalizeFilterValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 

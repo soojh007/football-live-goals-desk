@@ -36,7 +36,8 @@ const selected = selectUpcomingFixtures(fixtures, {
   maxAnalyses,
   start: now,
   end: windowEnd,
-  countries: configuredCountries()
+  countries: configuredList("DIGEST_COUNTRIES", config.digestCountries),
+  leagues: configuredList("DIGEST_LEAGUES", config.digestLeagues)
 });
 const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
   try {
@@ -91,11 +92,11 @@ function readConfig() {
   }
 }
 
-function configuredCountries() {
-  if (process.env.DIGEST_COUNTRIES) {
-    return process.env.DIGEST_COUNTRIES.split(",").map((country) => country.trim());
+function configuredList(envKey, fallback = []) {
+  if (process.env[envKey]) {
+    return process.env[envKey].split(",").map((value) => value.trim());
   }
-  return config.digestCountries ?? [];
+  return fallback;
 }
 
 function localDate(value, timeZone) {

@@ -2,15 +2,15 @@ const ELIGIBLE_STATUSES = new Set(["NS", "TBD"]);
 
 export function selectDigestFixtures(
   fixtures,
-  { maxAnalyses = 40, now = new Date(), countries = [] } = {}
+  { maxAnalyses = 40, now = new Date(), countries = [], leagues = [] } = {}
 ) {
-  const countrySet = normalizedCountrySet(countries);
+  const filters = normalizedFixtureFilters({ countries, leagues });
   const eligible = fixtures.filter((fixture) => {
     const status = fixture.fixture?.status?.short;
     const kickoff = new Date(fixture.fixture?.date ?? 0);
     return (
       fixture.fixture?.id &&
-      countryAllowed(fixture, countrySet) &&
+      fixtureAllowed(fixture, filters) &&
       ELIGIBLE_STATUSES.has(status) &&
       kickoff.getTime() >= now.getTime() - 30 * 60_000 &&
       fixture.teams?.home?.id &&
@@ -23,16 +23,16 @@ export function selectDigestFixtures(
 
 export function selectUpcomingFixtures(
   fixtures,
-  { maxAnalyses = 15, start = new Date(), end, countries = [] } = {}
+  { maxAnalyses = 15, start = new Date(), end, countries = [], leagues = [] } = {}
 ) {
-  const countrySet = normalizedCountrySet(countries);
+  const filters = normalizedFixtureFilters({ countries, leagues });
   const endTime = end instanceof Date ? end.getTime() : start.getTime() + 3 * 60 * 60_000;
   const eligible = fixtures.filter((fixture) => {
     const status = fixture.fixture?.status?.short;
     const kickoff = new Date(fixture.fixture?.date ?? 0).getTime();
     return (
       fixture.fixture?.id &&
-      countryAllowed(fixture, countrySet) &&
+      fixtureAllowed(fixture, filters) &&
       ELIGIBLE_STATUSES.has(status) &&
       kickoff >= start.getTime() &&
       kickoff <= endTime &&
@@ -44,15 +44,22 @@ export function selectUpcomingFixtures(
   return selectAcrossCountries(eligible, maxAnalyses);
 }
 
-function normalizedCountrySet(countries) {
-  return new Set(countries.map(normalizeCountry).filter(Boolean));
+function normalizedFixtureFilters({ countries, leagues }) {
+  return {
+    countries: new Set(countries.map(normalizeFilterValue).filter(Boolean)),
+    leagues: new Set(leagues.map(normalizeFilterValue).filter(Boolean))
+  };
 }
 
-function countryAllowed(fixture, countrySet) {
-  return !countrySet.size || countrySet.has(normalizeCountry(fixture.league?.country));
+function fixtureAllowed(fixture, filters) {
+  if (!filters.countries.size && !filters.leagues.size) return true;
+  return (
+    filters.countries.has(normalizeFilterValue(fixture.league?.country)) ||
+    filters.leagues.has(normalizeFilterValue(fixture.league?.name))
+  );
 }
 
-function normalizeCountry(value) {
+function normalizeFilterValue(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 

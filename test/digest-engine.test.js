@@ -60,6 +60,27 @@ test("selects only fixtures from configured digest countries", () => {
   );
 });
 
+test("selects fixtures from configured digest leagues", () => {
+  const fixtures = [
+    makeFixture(1, "World", "2026-06-13T10:00:00+08:00", "World Cup"),
+    makeFixture(2, "World", "2026-06-13T11:00:00+08:00", "Euro Championship"),
+    makeFixture(3, "World", "2026-06-13T12:00:00+08:00", "UEFA Champions League"),
+    makeFixture(4, "World", "2026-06-13T12:30:00+08:00", "Friendly")
+  ];
+  const selected = selectUpcomingFixtures(fixtures, {
+    maxAnalyses: 10,
+    start: new Date("2026-06-13T09:00:00+08:00"),
+    end: new Date("2026-06-13T13:00:00+08:00"),
+    countries: ["Japan"],
+    leagues: ["World Cup", "Euro Championship", "UEFA Champions League"]
+  });
+
+  assert.deepEqual(
+    selected.map((fixture) => fixture.league.name).sort(),
+    ["Euro Championship", "UEFA Champions League", "World Cup"]
+  );
+});
+
 test("analyses explicit over 2.5 candidate from team goal averages", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Netherlands", "2026-06-13T18:00:00+08:00"),
@@ -153,10 +174,10 @@ test("ranks candidates by kickoff time before quality and score", () => {
   assert.deepEqual(ranked.map((item) => item.rankScore), [70, 60]);
 });
 
-function makeFixture(id, country, date) {
+function makeFixture(id, country, date, leagueName = `${country} League`) {
   return {
     fixture: { id, date, status: { short: "NS" } },
-    league: { name: `${country} League`, country },
+    league: { name: leagueName, country },
     teams: {
       home: { id: id * 10, name: `Home ${id}` },
       away: { id: id * 10 + 1, name: `Away ${id}` }

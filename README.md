@@ -5,10 +5,12 @@ A low-quota API-Football workflow with:
 - rolling cron emails of likely 1X2 match-result picks from the Predictions API;
 - five-minute cron scans for in-game goal alerts.
 
-The digest only covers China, Japan, South-Korea, Australia, Sweden, Finland,
-Iceland, and Ireland. Fixtures are selected round-robin across those countries
-instead of using the analysis budget entirely on the first leagues returned by
-the API.
+The digest and live-alert scans cover the countries and competitions listed in
+`config.json`. Countries currently include China, Japan, South-Korea,
+Australia, Sweden, Finland, Iceland, Ireland, USA, England, Spain, Germany,
+Italy, Netherlands, and France. Competition filters include World Cup, Euro
+Championship, UEFA Champions League, UEFA Europa League, and UEFA Europa
+Conference League.
 
 ## Request budget
 
@@ -106,6 +108,7 @@ No web service is required for the cron digest.
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
+- `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`
 - `DIGEST_CONCURRENCY=4`: simultaneous prediction requests
 - `ALERT_MIN_LEVEL=watch`: minimum in-game signal level to email
 - `ALERT_COOLDOWN_MINUTES=90`: Resend idempotency bucket for duplicate live alerts

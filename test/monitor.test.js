@@ -113,7 +113,7 @@ test("monitors only configured live countries", async () => {
       return {
         data: [
           makeFixture({ id: 123, country: "Japan" }),
-          makeFixture({ id: 456, country: "Germany" })
+          makeFixture({ id: 456, country: "Portugal" })
         ],
         remaining: "7000"
       };
@@ -141,10 +141,45 @@ test("monitors only configured live countries", async () => {
   );
 });
 
-function makeFixture({ id = 123, minute = 36, country = "Japan" } = {}) {
+test("monitors configured live leagues outside configured countries", async () => {
+  const calls = { statistics: [] };
+  const client = {
+    async getLiveFixtures() {
+      return {
+        data: [
+          makeFixture({ id: 123, country: "World", league: "World Cup" }),
+          makeFixture({ id: 456, country: "World", league: "Friendly" })
+        ],
+        remaining: "7000"
+      };
+    },
+    async getFixtureStatistics(fixtureId) {
+      calls.statistics.push(fixtureId);
+      return { data: makeStatistics() };
+    },
+    async getLiveOdds() {
+      return { data: [] };
+    }
+  };
+  const monitor = new LiveMonitor({
+    client,
+    store: { append() {} },
+    configPath: new URL("../config.json", import.meta.url)
+  });
+
+  await monitor.poll();
+
+  assert.deepEqual(calls.statistics, [123]);
+  assert.deepEqual(
+    monitor.state.fixtures.map((fixture) => fixture.league),
+    ["World Cup"]
+  );
+});
+
+function makeFixture({ id = 123, minute = 36, country = "Japan", league = "Test League" } = {}) {
   return {
     fixture: { id, status: { elapsed: minute, short: "1H" } },
-    league: { name: "Test League", country },
+    league: { name: league, country },
     teams: { home: { name: "Home" }, away: { name: "Away" } },
     goals: { home: 0, away: 0 }
   };
