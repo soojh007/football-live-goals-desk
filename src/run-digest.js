@@ -3,7 +3,7 @@ import path from "node:path";
 import { loadEnv } from "./env.js";
 import { ApiFootballClient } from "./api-football.js";
 import {
-  analyzePrediction,
+  analyzeOdds,
   rankDigestCandidates,
   selectUpcomingFixtures
 } from "./digest-engine.js";
@@ -41,9 +41,9 @@ const selected = selectUpcomingFixtures(fixtures, {
 });
 const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
   try {
-    const result = await client.getPrediction(fixture.fixture.id);
+    const result = await client.getFixtureOdds(fixture.fixture.id);
     if (!result.data[0]) return null;
-    return analyzePrediction(fixture, result.data[0]);
+    return analyzeOdds(fixture, result.data);
   } catch (error) {
     console.warn(`Skipped fixture ${fixture.fixture.id}: ${error.message}`);
     return null;

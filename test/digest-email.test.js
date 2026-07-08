@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DigestEmail, renderDigestHtml } from "../src/digest-email.js";
 
-test("renders 1X2 prediction signals in one digest", () => {
+test("renders 1X2 signals in one digest", () => {
   const html = renderDigestHtml(makeReport());
   assert.match(html, /Likely Home win/);
-  assert.match(html, /1X2 match result/);
+  assert.match(html, /1X2 market odds/);
   assert.doesNotMatch(html, /Both teams to score/);
   assert.match(html, /Main signal/);
   assert.match(html, /Why this pick/);
@@ -50,7 +50,7 @@ function makeReport() {
         side: "OVER_2_5",
         label: "Likely over 2.5",
         mainSignal: {
-          market: "1X2 match result",
+          market: "1X2 market odds",
           pick: "Home",
           label: "Likely Home win",
           kind: "RESULT",
@@ -58,7 +58,7 @@ function makeReport() {
         },
         rankScore: 68,
         dataQuality: "high",
-        reasons: ["Result split: 58%/23%/19%"]
+        reasons: ["Odds-implied split: 58%/23%/19%"]
       }
     ]
   };

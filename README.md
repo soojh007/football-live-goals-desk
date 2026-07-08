@@ -2,7 +2,7 @@
 
 A low-quota API-Football workflow with:
 
-- rolling cron emails of likely 1X2 match-result picks from the Predictions API;
+- rolling cron emails of likely 1X2 match-result picks inferred from current odds;
 - five-minute cron scans for in-game goal alerts.
 
 The digest and live-alert scans cover the countries and competitions listed in
@@ -17,7 +17,7 @@ Conference League.
 Each rolling email uses:
 
 - one fixture request, or two if the six-hour window crosses midnight;
-- up to `DIGEST_MAX_ANALYSES` prediction requests.
+- up to `DIGEST_MAX_ANALYSES` odds requests.
 
 The default is therefore at most 27 API requests per email. There are six
 scheduled emails per day, so the normal cap is about 162 API requests per day.
@@ -66,20 +66,18 @@ npm run live-alerts
 
 The digest model combines:
 
-- API-Football prediction percentages for home/draw/away;
-- API-Football predicted winner and advice;
-- home and away scoring averages;
-- home and away concession averages;
-- API-Football prediction advice and over/under view;
-- prediction comparison coverage;
-- an expected-goals total converted into an over 2.5 probability.
+- current bookmaker 1X2 odds from API-Football;
+- normalized implied probabilities with bookmaker margin removed;
+- the best available price for the selected outcome;
+- the number of bookmakers sampled;
+- the market edge over the next most likely outcome.
 
 The digest main signal focuses on:
 
 - `1X2 match result`: likely home win, draw, or away win
 
-If the Predictions API does not provide a usable 1X2 edge, the digest can fall
-back to `Total goals 2.5`. BTTS is not used as an email signal.
+Matches without usable 1X2 odds are skipped. BTTS is not used as an email
+signal.
 
 The final score is a ranking heuristic, not a guaranteed result or calibrated
 probability.
@@ -104,12 +102,12 @@ No web service is required for the cron digest.
 ## Configuration
 
 - `DIGEST_WINDOW_HOURS=6`: upcoming kickoff window for each email
-- `DIGEST_MAX_ANALYSES=25`: hard cap on prediction calls per email
+- `DIGEST_MAX_ANALYSES=25`: hard cap on odds calls per email
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
 - `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`
-- `DIGEST_CONCURRENCY=4`: simultaneous prediction requests
+- `DIGEST_CONCURRENCY=4`: simultaneous odds requests
 - `ALERT_MIN_LEVEL=watch`: minimum in-game signal level to email
 - `ALERT_COOLDOWN_MINUTES=90`: Resend idempotency bucket for duplicate live alerts
 - `STATISTICS_REFRESH_SECONDS=120`: live statistics cache setting used within one scan

@@ -156,6 +156,75 @@ export function analyzePrediction(fixture, predictionResponse) {
   };
 }
 
+export function analyzeOdds(fixture, oddsResponse = []) {
+  const market = summarizeMatchWinnerOdds({
+    home: fixture.teams.home.name,
+    away: fixture.teams.away.name,
+    oddsResponse
+  });
+  if (!market) return null;
+
+  const options = [
+    {
+      key: "home",
+      pick: fixture.teams.home.name,
+      label: `Likely ${fixture.teams.home.name} win`,
+      probability: market.probabilities.home
+    },
+    {
+      key: "draw",
+      pick: "Draw",
+      label: "Likely draw",
+      probability: market.probabilities.draw
+    },
+    {
+      key: "away",
+      pick: fixture.teams.away.name,
+      label: `Likely ${fixture.teams.away.name} win`,
+      probability: market.probabilities.away
+    }
+  ].sort((a, b) => b.probability - a.probability);
+  const [best, next] = options;
+  const rankScore = Math.round(best.probability * 100);
+
+  return {
+    fixtureId: fixture.fixture.id,
+    kickoff: fixture.fixture.date,
+    country: fixture.league?.country ?? "International",
+    league: fixture.league?.name ?? "Unknown competition",
+    home: fixture.teams.home.name,
+    away: fixture.teams.away.name,
+    side: best.key.toUpperCase(),
+    label: best.label,
+    mainSignal: {
+      market: "1X2 market odds",
+      pick: best.pick,
+      label: best.label,
+      kind: "RESULT",
+      score: clamp(rankScore, 25, 90)
+    },
+    rankScore,
+    dataQuality: market.bookmakers >= 5 ? "high" : market.bookmakers >= 2 ? "medium" : "limited",
+    projectedGoals: null,
+    advice: "",
+    underOver: "",
+    winner: best.pick,
+    winnerComment: "Inferred from current bookmaker odds",
+    percent: {
+      home: formatPercent(market.probabilities.home),
+      draw: formatPercent(market.probabilities.draw),
+      away: formatPercent(market.probabilities.away)
+    },
+    form: { home: "", away: "" },
+    reasons: [
+      `Odds-implied split: ${formatPercent(market.probabilities.home)}/${formatPercent(market.probabilities.draw)}/${formatPercent(market.probabilities.away)}`,
+      `Best current price: ${best.pick} @ ${market.bestPrices[best.key].odd} (${market.bestPrices[best.key].bookmaker})`,
+      `Bookmakers sampled: ${market.bookmakers}`,
+      `Market edge over next outcome: ${formatPercent(best.probability - next.probability)}`
+    ]
+  };
+}
+
 export function rankDigestCandidates(candidates, limit = 12) {
   return candidates
     .filter((candidate) => candidate && candidate.dataQuality !== "limited")
@@ -303,6 +372,91 @@ function parsePercentages(percent = {}) {
     draw: percent.draw ?? "",
     away: percent.away ?? ""
   };
+}
+
+function summarizeMatchWinnerOdds({ home, away, oddsResponse }) {
+  const snapshots = [];
+  const bestPrices = {
+    home: null,
+    draw: null,
+    away: null
+  };
+
+  for (const fixtureOdds of oddsResponse) {
+    for (const bookmaker of fixtureOdds.bookmakers ?? []) {
+      const bet = (bookmaker.bets ?? []).find((item) => isMatchWinnerMarket(item.name));
+      const prices = parseMatchWinnerPrices({ bet, home, away });
+      if (!prices) continue;
+
+      for (const key of ["home", "draw", "away"]) {
+        if (!bestPrices[key] || prices[key] > bestPrices[key].odd) {
+          bestPrices[key] = {
+            odd: prices[key],
+            bookmaker: bookmaker.name ?? "Unknown bookmaker"
+          };
+        }
+      }
+
+      const implied = {
+        home: 1 / prices.home,
+        draw: 1 / prices.draw,
+        away: 1 / prices.away
+      };
+      const total = implied.home + implied.draw + implied.away;
+      if (!Number.isFinite(total) || total <= 0) continue;
+      snapshots.push({
+        home: implied.home / total,
+        draw: implied.draw / total,
+        away: implied.away / total
+      });
+    }
+  }
+
+  if (!snapshots.length || !bestPrices.home || !bestPrices.draw || !bestPrices.away) {
+    return null;
+  }
+
+  return {
+    probabilities: {
+      home: average(snapshots.map((item) => item.home)),
+      draw: average(snapshots.map((item) => item.draw)),
+      away: average(snapshots.map((item) => item.away))
+    },
+    bestPrices,
+    bookmakers: snapshots.length
+  };
+}
+
+function isMatchWinnerMarket(name = "") {
+  const normalized = String(name).toLowerCase();
+  return (
+    /match winner|1x2|full.?time result|winner/.test(normalized) &&
+    !/double chance|half|period|corner|card|1st|2nd/.test(normalized)
+  );
+}
+
+function parseMatchWinnerPrices({ bet, home, away }) {
+  if (!bet) return null;
+  const prices = {};
+  for (const value of bet.values ?? []) {
+    const key = matchWinnerKey(value.value, { home, away });
+    const odd = Number.parseFloat(value.odd);
+    if (!key || !Number.isFinite(odd) || odd <= 1) continue;
+    prices[key] = odd;
+  }
+  return prices.home && prices.draw && prices.away ? prices : null;
+}
+
+function matchWinnerKey(value, { home, away }) {
+  const normalized = normalizeName(value);
+  if (["home", "1"].includes(normalized) || normalized === normalizeName(home)) return "home";
+  if (["draw", "x"].includes(normalized)) return "draw";
+  if (["away", "2"].includes(normalized) || normalized === normalizeName(away)) return "away";
+  return null;
+}
+
+function formatPercent(value) {
+  return `${Math.round(value * 100)}%`;
 }
 
 function percentageNumber(value) {

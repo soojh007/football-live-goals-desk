@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  analyzeOdds,
   analyzePrediction,
   rankDigestCandidates,
   selectDigestFixtures,
@@ -79,6 +80,32 @@ test("selects fixtures from configured digest leagues", () => {
     selected.map((fixture) => fixture.league.name).sort(),
     ["Euro Championship", "UEFA Champions League", "World Cup"]
   );
+});
+
+test("analyses 1X2 picks from normalized bookmaker odds", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    makeOddsResponse([
+      { bookmaker: "A", home: 1.9, draw: 3.4, away: 4.2 },
+      { bookmaker: "B", home: 1.85, draw: 3.5, away: 4.5 },
+      { bookmaker: "C", home: 1.91, draw: 3.3, away: 4.4 }
+    ])
+  );
+
+  assert.equal(candidate.mainSignal.market, "1X2 market odds");
+  assert.equal(candidate.mainSignal.pick, "Home 1");
+  assert.equal(candidate.dataQuality, "medium");
+  assert.match(candidate.reasons.join(" "), /Odds-implied split:/);
+  assert.match(candidate.reasons.join(" "), /Best current price: Home 1 @ 1.91 \(C\)/);
+});
+
+test("skips odds analysis when 1X2 odds are unavailable", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    [{ bookmakers: [{ name: "A", bets: [{ name: "Double Chance", values: [] }] }] }]
+  );
+
+  assert.equal(candidate, null);
 });
 
 test("analyses explicit over 2.5 candidate from team goal averages", () => {
@@ -183,6 +210,26 @@ function makeFixture(id, country, date, leagueName = `${country} League`) {
       away: { id: id * 10 + 1, name: `Away ${id}` }
     }
   };
+}
+
+function makeOddsResponse(bookmakers) {
+  return [
+    {
+      bookmakers: bookmakers.map(({ bookmaker, home, draw, away }) => ({
+        name: bookmaker,
+        bets: [
+          {
+            name: "Match Winner",
+            values: [
+              { value: "Home", odd: String(home) },
+              { value: "Draw", odd: String(draw) },
+              { value: "Away", odd: String(away) }
+            ]
+          }
+        ]
+      }))
+    }
+  ];
 }
 
 function makePrediction({
