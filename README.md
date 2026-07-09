@@ -72,6 +72,10 @@ The digest model combines:
 - the number of bookmakers sampled;
 - the market edge over the next most likely outcome.
 
+An odds-agent filter then rejects weak picks before email delivery. By default
+it requires enough bookmaker coverage, a meaningful edge over the next outcome,
+reasonable odds, and limited bookmaker disagreement.
+
 The digest main signal focuses on:
 
 - `1X2 match result`: likely home win, draw, or away win
@@ -108,6 +112,12 @@ No web service is required for the cron digest.
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
 - `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`
 - `DIGEST_CONCURRENCY=4`: simultaneous odds requests
+- `ODDS_AGENT_MINIMUM_BOOKMAKERS=3`: minimum 1X2 bookmakers required
+- `ODDS_AGENT_MINIMUM_TOP_PROBABILITY=0.45`: minimum normalized top outcome probability
+- `ODDS_AGENT_MINIMUM_EDGE=0.08`: minimum gap over the second outcome
+- `ODDS_AGENT_MINIMUM_ODD=1.5`: minimum selected outcome price
+- `ODDS_AGENT_MAXIMUM_ODD=3.5`: maximum selected outcome price
+- `ODDS_AGENT_MAXIMUM_PRICE_SPREAD=0.35`: maximum bookmaker price disagreement
 - `ALERT_MIN_LEVEL=watch`: minimum in-game signal level to email
 - `ALERT_COOLDOWN_MINUTES=90`: Resend idempotency bucket for duplicate live alerts
 - `STATISTICS_REFRESH_SECONDS=120`: live statistics cache setting used within one scan

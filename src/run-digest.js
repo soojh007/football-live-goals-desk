@@ -12,6 +12,7 @@ import { DigestEmail, renderDigestHtml } from "./digest-email.js";
 loadEnv();
 
 const config = readConfig();
+config.oddsAgent = configuredOddsAgent(config.oddsAgent);
 const timezone = process.env.DIGEST_TIMEZONE ?? config.timezone ?? "Asia/Singapore";
 const now = new Date();
 const windowHours = clampInteger(process.env.DIGEST_WINDOW_HOURS, 6, 1, 12);
@@ -43,7 +44,7 @@ const analyses = await mapWithConcurrency(selected, concurrency, async (fixture)
   try {
     const result = await client.getFixtureOdds(fixture.fixture.id);
     if (!result.data[0]) return null;
-    return analyzeOdds(fixture, result.data);
+    return analyzeOdds(fixture, result.data, { agentConfig: config.oddsAgent });
   } catch (error) {
     console.warn(`Skipped fixture ${fixture.fixture.id}: ${error.message}`);
     return null;
@@ -97,6 +98,29 @@ function configuredList(envKey, fallback = []) {
     return process.env[envKey].split(",").map((value) => value.trim());
   }
   return fallback;
+}
+
+function configuredOddsAgent(fallback = {}) {
+  return {
+    ...fallback,
+    enabled: parseBoolean(process.env.ODDS_AGENT_ENABLED, fallback.enabled),
+    minimumBookmakers: configuredNumber("ODDS_AGENT_MINIMUM_BOOKMAKERS", fallback.minimumBookmakers),
+    minimumTopProbability: configuredNumber("ODDS_AGENT_MINIMUM_TOP_PROBABILITY", fallback.minimumTopProbability),
+    minimumEdge: configuredNumber("ODDS_AGENT_MINIMUM_EDGE", fallback.minimumEdge),
+    minimumOdd: configuredNumber("ODDS_AGENT_MINIMUM_ODD", fallback.minimumOdd),
+    maximumOdd: configuredNumber("ODDS_AGENT_MAXIMUM_ODD", fallback.maximumOdd),
+    maximumPriceSpread: configuredNumber("ODDS_AGENT_MAXIMUM_PRICE_SPREAD", fallback.maximumPriceSpread)
+  };
+}
+
+function configuredNumber(envKey, fallback) {
+  const parsed = Number.parseFloat(process.env[envKey]);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseBoolean(value, fallback) {
+  if (value === undefined) return fallback;
+  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
 }
 
 function localDate(value, timeZone) {

@@ -48,6 +48,15 @@
     "UEFA Europa League",
     "UEFA Europa Conference League"
   ],
+  "oddsAgent": {
+    "enabled": true,
+    "minimumBookmakers": 3,
+    "minimumTopProbability": 0.45,
+    "minimumEdge": 0.08,
+    "minimumOdd": 1.5,
+    "maximumOdd": 3.5,
+    "maximumPriceSpread": 0.35
+  },
   "minimumSignalScore": 58,
   "halftimeOver05": {
     "enabled": true,

@@ -97,6 +97,7 @@ test("analyses 1X2 picks from normalized bookmaker odds", () => {
   assert.equal(candidate.dataQuality, "medium");
   assert.match(candidate.reasons.join(" "), /Odds-implied split:/);
   assert.match(candidate.reasons.join(" "), /Best current price: Home 1 @ 1.91 \(C\)/);
+  assert.match(candidate.reasons.join(" "), /Agent verdict: PASS/);
 });
 
 test("skips odds analysis when 1X2 odds are unavailable", () => {
@@ -106,6 +107,44 @@ test("skips odds analysis when 1X2 odds are unavailable", () => {
   );
 
   assert.equal(candidate, null);
+});
+
+test("odds agent rejects weak market edges", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    makeOddsResponse([
+      { bookmaker: "A", home: 2.55, draw: 3.1, away: 2.65 },
+      { bookmaker: "B", home: 2.6, draw: 3.0, away: 2.62 },
+      { bookmaker: "C", home: 2.58, draw: 3.05, away: 2.66 }
+    ])
+  );
+
+  assert.equal(candidate, null);
+});
+
+test("odds agent rejects thin bookmaker coverage", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    makeOddsResponse([
+      { bookmaker: "A", home: 1.9, draw: 3.4, away: 4.2 },
+      { bookmaker: "B", home: 1.85, draw: 3.5, away: 4.5 }
+    ])
+  );
+
+  assert.equal(candidate, null);
+});
+
+test("odds agent can be disabled for diagnostics", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    makeOddsResponse([
+      { bookmaker: "A", home: 1.9, draw: 3.4, away: 4.2 }
+    ]),
+    { agentConfig: { enabled: false } }
+  );
+
+  assert.equal(candidate.mainSignal.pick, "Home 1");
+  assert.match(candidate.reasons.join(" "), /Agent verdict: PASS - Agent disabled/);
 });
 
 test("analyses explicit over 2.5 candidate from team goal averages", () => {

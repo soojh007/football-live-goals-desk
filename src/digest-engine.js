@@ -1,3 +1,5 @@
+import { evaluateOddsCandidate } from "./odds-agent.js";
+
 const ELIGIBLE_STATUSES = new Set(["NS", "TBD"]);
 
 export function selectDigestFixtures(
@@ -156,7 +158,7 @@ export function analyzePrediction(fixture, predictionResponse) {
   };
 }
 
-export function analyzeOdds(fixture, oddsResponse = []) {
+export function analyzeOdds(fixture, oddsResponse = [], { agentConfig = {} } = {}) {
   const market = summarizeMatchWinnerOdds({
     home: fixture.teams.home.name,
     away: fixture.teams.away.name,
@@ -186,8 +188,7 @@ export function analyzeOdds(fixture, oddsResponse = []) {
   ].sort((a, b) => b.probability - a.probability);
   const [best, next] = options;
   const rankScore = Math.round(best.probability * 100);
-
-  return {
+  const candidate = {
     fixtureId: fixture.fixture.id,
     kickoff: fixture.fixture.date,
     country: fixture.league?.country ?? "International",
@@ -221,6 +222,15 @@ export function analyzeOdds(fixture, oddsResponse = []) {
       `Best current price: ${best.pick} @ ${market.bestPrices[best.key].odd} (${market.bestPrices[best.key].bookmaker})`,
       `Bookmakers sampled: ${market.bookmakers}`,
       `Market edge over next outcome: ${formatPercent(best.probability - next.probability)}`
+    ]
+  };
+  const verdict = evaluateOddsCandidate({ candidate, market, best, next, config: agentConfig });
+  if (!verdict.passed) return null;
+  return {
+    ...candidate,
+    reasons: [
+      ...candidate.reasons,
+      `Agent verdict: PASS - ${verdict.reasons.join("; ")}`
     ]
   };
 }
@@ -381,6 +391,11 @@ function summarizeMatchWinnerOdds({ home, away, oddsResponse }) {
     draw: null,
     away: null
   };
+  const priceLists = {
+    home: [],
+    draw: [],
+    away: []
+  };
 
   for (const fixtureOdds of oddsResponse) {
     for (const bookmaker of fixtureOdds.bookmakers ?? []) {
@@ -389,6 +404,7 @@ function summarizeMatchWinnerOdds({ home, away, oddsResponse }) {
       if (!prices) continue;
 
       for (const key of ["home", "draw", "away"]) {
+        priceLists[key].push(prices[key]);
         if (!bestPrices[key] || prices[key] > bestPrices[key].odd) {
           bestPrices[key] = {
             odd: prices[key],
@@ -423,8 +439,18 @@ function summarizeMatchWinnerOdds({ home, away, oddsResponse }) {
       away: average(snapshots.map((item) => item.away))
     },
     bestPrices,
+    priceSpreads: {
+      home: priceSpread(priceLists.home),
+      draw: priceSpread(priceLists.draw),
+      away: priceSpread(priceLists.away)
+    },
     bookmakers: snapshots.length
   };
+}
+
+function priceSpread(values) {
+  if (!values.length) return 0;
+  return Math.max(...values) - Math.min(...values);
 }
 
 function isMatchWinnerMarket(name = "") {
