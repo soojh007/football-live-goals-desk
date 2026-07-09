@@ -40,6 +40,11 @@ export function evaluateFixture({
   const goals = Number(fixture.goals?.home ?? 0) + Number(fixture.goals?.away ?? 0);
   const recent = calculateRecentChange(statistics, previousStatistics);
   const market = extractGoalMarkets(oddsResponse);
+  const matchWinnerMarket = extractMatchWinnerMarkets({
+    oddsResponse,
+    home: fixture.teams?.home?.name ?? "Home",
+    away: fixture.teams?.away?.name ?? "Away"
+  });
   const context = extractMatchContext(fixture.events);
   const hasStatistics = statistics.totalShots > 0 || statistics.shotsOnTarget > 0;
   const signals = [];
@@ -63,6 +68,23 @@ export function evaluateFixture({
         minimumSignalScore: config.minimumSignalScore
       })
     );
+  }
+
+  if (
+    config.matchWinner?.enabled &&
+    ["1H", "HT", "2H"].includes(status) &&
+    minute >= config.matchWinner.startMinute &&
+    minute <= config.matchWinner.endMinute
+  ) {
+    const signal = scoreMatchWinner({
+      market: matchWinnerMarket,
+      fixture,
+      minute,
+      minimumSignalScore: config.minimumSignalScore,
+      thresholds: config.matchWinner,
+      context
+    });
+    if (signal) signals.push(signal);
   }
 
   if (
@@ -101,8 +123,55 @@ export function evaluateFixture({
     recent,
     context,
     markets: market,
+    matchWinnerMarket,
     signals,
     hasStatistics
+  };
+}
+
+function scoreMatchWinner({
+  market,
+  fixture,
+  minute,
+  minimumSignalScore,
+  thresholds,
+  context
+}) {
+  if (!market) return null;
+  const options = [
+    { key: "home", label: fixture.teams?.home?.name ?? "Home", probability: market.probabilities.home },
+    { key: "draw", label: "Draw", probability: market.probabilities.draw },
+    { key: "away", label: fixture.teams?.away?.name ?? "Away", probability: market.probabilities.away }
+  ].sort((a, b) => b.probability - a.probability);
+  const [best, next] = options;
+  const edge = best.probability - next.probability;
+
+  if (market.bookmakers < thresholds.minimumBookmakers) return null;
+  if (best.probability < thresholds.minimumProbability) return null;
+  if (edge < thresholds.minimumEdge) return null;
+
+  const score = Math.round(best.probability * 100);
+  const selectedPrice = market.bestPrices[best.key];
+  return {
+    type: `LIVE_1X2_${best.key.toUpperCase()}`,
+    label: `Live 1X2 lean: ${best.label}`,
+    score,
+    level: signalLevel(score, minimumSignalScore),
+    reasons: [
+      `Odds-implied split: ${formatPercent(market.probabilities.home)}/${formatPercent(market.probabilities.draw)}/${formatPercent(market.probabilities.away)}`,
+      `${market.bookmakers} bookmaker${market.bookmakers === 1 ? "" : "s"} sampled`,
+      `${formatPercent(edge)} edge over next outcome`,
+      `${minute} minutes played`
+    ],
+    price: {
+      label: selectedPrice.label,
+      odd: selectedPrice.odd,
+      bookmaker: selectedPrice.bookmaker
+    },
+    caution: cautionText(
+      "Live 1X2 odds can move quickly after goals, cards, VAR, or tactical changes.",
+      context
+    )
   };
 }
 
@@ -246,6 +315,86 @@ export function extractGoalMarkets(oddsResponse = []) {
   return markets;
 }
 
+export function extractMatchWinnerMarkets({ oddsResponse = [], home, away }) {
+  const snapshots = [];
+  const bestPrices = { home: null, draw: null, away: null };
+
+  for (const fixtureOdds of oddsResponse) {
+    for (const bookmaker of fixtureOdds.odds ?? []) {
+      const bet = (bookmaker.bets ?? []).find((item) => isMatchWinnerMarket(item.name));
+      const prices = parseMatchWinnerPrices({ bet, home, away });
+      if (!prices) continue;
+
+      for (const key of ["home", "draw", "away"]) {
+        if (!bestPrices[key] || prices[key].odd > bestPrices[key].odd) {
+          bestPrices[key] = {
+            ...prices[key],
+            bookmaker: bookmaker.name ?? "Unknown bookmaker"
+          };
+        }
+      }
+
+      const implied = {
+        home: 1 / prices.home.odd,
+        draw: 1 / prices.draw.odd,
+        away: 1 / prices.away.odd
+      };
+      const total = implied.home + implied.draw + implied.away;
+      if (!Number.isFinite(total) || total <= 0) continue;
+      snapshots.push({
+        home: implied.home / total,
+        draw: implied.draw / total,
+        away: implied.away / total
+      });
+    }
+  }
+
+  if (!snapshots.length || !bestPrices.home || !bestPrices.draw || !bestPrices.away) {
+    return null;
+  }
+
+  return {
+    probabilities: {
+      home: average(snapshots.map((item) => item.home)),
+      draw: average(snapshots.map((item) => item.draw)),
+      away: average(snapshots.map((item) => item.away))
+    },
+    bestPrices,
+    bookmakers: snapshots.length
+  };
+}
+
+function isMatchWinnerMarket(name = "") {
+  const normalized = String(name).toLowerCase();
+  return (
+    /match winner|1x2|full.?time result|winner/.test(normalized) &&
+    !/double chance|half|period|corner|card|1st|2nd/.test(normalized)
+  );
+}
+
+function parseMatchWinnerPrices({ bet, home, away }) {
+  if (!bet) return null;
+  const prices = {};
+  for (const value of bet.values ?? []) {
+    const key = matchWinnerKey(value.value, { home, away });
+    const odd = Number.parseFloat(value.odd);
+    if (!key || !Number.isFinite(odd) || odd <= 1 || value.suspended) continue;
+    prices[key] = {
+      label: key === "home" ? home : key === "away" ? away : "Draw",
+      odd
+    };
+  }
+  return prices.home && prices.draw && prices.away ? prices : null;
+}
+
+function matchWinnerKey(value, { home, away }) {
+  const normalized = normalizeName(value);
+  if (["home", "1"].includes(normalized) || normalized === normalizeName(home)) return "home";
+  if (["draw", "x"].includes(normalized)) return "draw";
+  if (["away", "2"].includes(normalized) || normalized === normalizeName(away)) return "away";
+  return null;
+}
+
 function parseMarketValue(value) {
   const match = String(value ?? "").match(/\b(Over|Under)\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (!match) return null;
@@ -282,6 +431,11 @@ function bestPrice(items) {
   return items.reduce((best, item) => (item.odd > best.odd ? item : best));
 }
 
+function average(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function calculateRecentChange(current, previous) {
   if (!previous) {
     return { available: false, shotsOnTarget: 0, totalShots: 0, corners: 0 };
@@ -316,6 +470,14 @@ function parseStatValue(value) {
 
 function titleCase(value) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+}
+
+function normalizeName(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function formatPercent(value) {
+  return `${Math.round(value * 100)}%`;
 }
 
 function cautionText(base, context) {

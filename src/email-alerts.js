@@ -126,9 +126,7 @@ function splitAddresses(value = "") {
 }
 
 function renderEmail({ fixture, signal, dashboardUrl }) {
-  const price = signal.price
-    ? `${signal.price.side} ${signal.price.line} @ ${signal.price.odd} (${signal.price.bookmaker})`
-    : "No matching live price returned";
+  const price = formatPrice(signal.price);
   const dashboardLink = dashboardUrl
     ? `<p><a href="${escapeHtml(dashboardUrl)}">Open Live Goals Desk</a></p>`
     : "";
@@ -148,6 +146,12 @@ function renderEmail({ fixture, signal, dashboardUrl }) {
     <small>This is decision support, not a guarantee or calibrated probability.</small>
   </body>
 </html>`;
+}
+
+function formatPrice(price) {
+  if (!price) return "No matching live price returned";
+  if (price.label) return `${price.label} @ ${price.odd} (${price.bookmaker})`;
+  return `${price.side} ${price.line} @ ${price.odd} (${price.bookmaker})`;
 }
 
 function escapeHtml(value) {

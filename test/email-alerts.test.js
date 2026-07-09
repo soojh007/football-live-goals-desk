@@ -80,6 +80,35 @@ test("changes the idempotency key when the email payload changes", async () => {
   );
 });
 
+test("renders labelled live 1X2 prices", async () => {
+  let html = "";
+  const alerts = new EmailAlerts({
+    apiKey: "test-key",
+    to: "owner@example.com",
+    fetchImpl: async (url, options) => {
+      html = JSON.parse(options.body).html;
+      return new Response(JSON.stringify({ id: "email-1" }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    }
+  });
+  const fixture = makeFixture();
+  fixture.signals[0] = {
+    type: "LIVE_1X2_HOME",
+    label: "Live 1X2 lean: Home",
+    level: "watch",
+    score: 64,
+    reasons: ["Odds-implied split: 64%/22%/14%"],
+    price: { label: "Home", odd: 1.55, bookmaker: "Book A" },
+    caution: "Check match context."
+  };
+
+  await alerts.notify([fixture]);
+
+  assert.match(html, /Home @ 1.55 \(Book A\)/);
+});
+
 function makeFixture() {
   return {
     fixtureId: 123,

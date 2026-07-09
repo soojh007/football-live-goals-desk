@@ -8,6 +8,7 @@ export class LiveMonitor {
     store,
     alerts,
     configPath = path.resolve("config.json"),
+    configOverrides = {},
     statisticsRefreshSeconds = 120,
     unavailableRetrySeconds = 900,
     oddsRefreshSeconds = 300
@@ -16,6 +17,7 @@ export class LiveMonitor {
     this.store = store;
     this.alerts = alerts;
     this.configPath = configPath;
+    this.configOverrides = configOverrides;
     this.statisticsRefreshMs = statisticsRefreshSeconds * 1000;
     this.unavailableRetryMs = unavailableRetrySeconds * 1000;
     this.oddsRefreshMs = oddsRefreshSeconds * 1000;
@@ -35,7 +37,10 @@ export class LiveMonitor {
   }
 
   getConfig() {
-    return JSON.parse(fs.readFileSync(this.configPath, "utf8"));
+    return mergeConfig(
+      JSON.parse(fs.readFileSync(this.configPath, "utf8")),
+      this.configOverrides
+    );
   }
 
   async poll() {
@@ -79,10 +84,7 @@ export class LiveMonitor {
           config
         });
 
-        if (
-          hasAlertCandidate(evaluated) &&
-          now - oddsFetchedAt >= this.oddsRefreshMs
-        ) {
+        if (shouldFetchOdds(evaluated, config) && now - oddsFetchedAt >= this.oddsRefreshMs) {
           try {
             const oddsResult = await this.client.getLiveOdds(fixtureId);
             odds = oddsResult.data;
@@ -153,6 +155,16 @@ export class LiveMonitor {
   }
 }
 
+function mergeConfig(base, overrides) {
+  return {
+    ...base,
+    ...overrides,
+    halftimeOver05: { ...base.halftimeOver05, ...overrides.halftimeOver05 },
+    totalGoals: { ...base.totalGoals, ...overrides.totalGoals },
+    matchWinner: { ...base.matchWinner, ...overrides.matchWinner }
+  };
+}
+
 function cacheDuration(cached, monitor) {
   return cached.evaluated.hasStatistics
     ? monitor.statisticsRefreshMs
@@ -161,6 +173,10 @@ function cacheDuration(cached, monitor) {
 
 function hasAlertCandidate(evaluated) {
   return evaluated.signals.some((signal) => signal.level !== "pass");
+}
+
+function shouldFetchOdds(evaluated, config) {
+  return hasAlertCandidate(evaluated) || Boolean(config.matchWinner?.enabled);
 }
 
 function updateLiveState(evaluated, fixture) {
@@ -187,6 +203,7 @@ function pruneFixtureCache(cache, activeFixtureIds) {
 function isRelevantFixture(fixture, config) {
   const minute = Number(fixture.fixture?.status?.elapsed ?? 0);
   const status = fixture.fixture?.status?.short;
+  const windows = enabledWindows(config);
   const filters = {
     countries: new Set((config.liveCountries ?? []).map(normalizeFilterValue)),
     leagues: new Set((config.liveLeagues ?? []).map(normalizeFilterValue))
@@ -194,9 +211,15 @@ function isRelevantFixture(fixture, config) {
   return (
     fixtureAllowed(fixture, filters) &&
     ["1H", "HT", "2H"].includes(status) &&
-    minute >= Math.min(config.halftimeOver05.startMinute, config.totalGoals.startMinute) &&
-    minute <= Math.max(config.halftimeOver05.endMinute, config.totalGoals.endMinute)
+    windows.length > 0 &&
+    minute >= Math.min(...windows.map((window) => window.startMinute)) &&
+    minute <= Math.max(...windows.map((window) => window.endMinute))
   );
+}
+
+function enabledWindows(config) {
+  return [config.halftimeOver05, config.totalGoals, config.matchWinner]
+    .filter((window) => window?.enabled);
 }
 
 function fixtureAllowed(fixture, filters) {

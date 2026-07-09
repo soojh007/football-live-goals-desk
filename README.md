@@ -27,7 +27,8 @@ Each live-alert scan uses:
 
 - one live fixtures request;
 - one statistics request per focused live match inside the configured windows;
-- one live-odds request for matches with actionable signals.
+- one live-odds request for matches with actionable goal-pressure signals or
+  when live 1X2 alerts are enabled.
 
 ## Local setup
 
@@ -123,6 +124,9 @@ No web service is required for the cron digest.
 - `STATISTICS_REFRESH_SECONDS=120`: live statistics cache setting used within one scan
 - `UNAVAILABLE_RETRY_SECONDS=900`: retry setting for matches without statistics
 - `ODDS_REFRESH_SECONDS=300`: live odds refresh setting used within one scan
+- `MATCH_WINNER_ENABLED=true`: enable live 1X2 alerts from live match-winner odds
+- `MATCH_WINNER_MINIMUM_PROBABILITY=0.58`: minimum live odds-implied top outcome probability
+- `MATCH_WINNER_MINIMUM_EDGE=0.08`: minimum live 1X2 edge over the second outcome
 
 ## Tests
 

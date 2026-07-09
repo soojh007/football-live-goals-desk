@@ -176,6 +176,34 @@ test("monitors configured live leagues outside configured countries", async () =
   );
 });
 
+test("uses the live 1X2 window when selecting focused matches", async () => {
+  const calls = { statistics: [] };
+  const client = {
+    async getLiveFixtures() {
+      return {
+        data: [makeFixture({ id: 123, minute: 12 })],
+        remaining: "7000"
+      };
+    },
+    async getFixtureStatistics(fixtureId) {
+      calls.statistics.push(fixtureId);
+      return { data: makeQuietStatistics() };
+    },
+    async getLiveOdds() {
+      return { data: [] };
+    }
+  };
+  const monitor = new LiveMonitor({
+    client,
+    store: { append() {} },
+    configPath: new URL("../config.json", import.meta.url)
+  });
+
+  await monitor.poll();
+
+  assert.deepEqual(calls.statistics, [123]);
+});
+
 function makeFixture({ id = 123, minute = 36, country = "Japan", league = "Test League" } = {}) {
   return {
     fixture: { id, status: { elapsed: minute, short: "1H" } },

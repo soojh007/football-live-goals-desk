@@ -75,5 +75,13 @@
     "minimumTotalShots": 9,
     "minimumCorners": 3,
     "minimumRecentShots": 2
+  },
+  "matchWinner": {
+    "enabled": true,
+    "startMinute": 10,
+    "endMinute": 82,
+    "minimumBookmakers": 1,
+    "minimumProbability": 0.58,
+    "minimumEdge": 0.08
   }
 }

@@ -4,6 +4,7 @@ import {
   evaluateFixture,
   extractMatchContext,
   extractGoalMarkets,
+  extractMatchWinnerMarkets,
   normalizeStatistics
 } from "../src/signal-engine.js";
 
@@ -26,6 +27,14 @@ const config = {
     minimumTotalShots: 9,
     minimumCorners: 3,
     minimumRecentShots: 2
+  },
+  matchWinner: {
+    enabled: true,
+    startMinute: 10,
+    endMinute: 82,
+    minimumBookmakers: 1,
+    minimumProbability: 0.58,
+    minimumEdge: 0.08
   }
 };
 
@@ -163,6 +172,62 @@ test("extracts the best matching goal market data", () => {
     odd: 1.91,
     suspended: false
   });
+});
+
+test("extracts live 1X2 market data", () => {
+  const market = extractMatchWinnerMarkets({
+    home: "Home",
+    away: "Away",
+    oddsResponse: [
+      {
+        odds: [{
+          name: "Book A",
+          bets: [{
+            name: "Match Winner",
+            values: [
+              { value: "Home", odd: "1.80" },
+              { value: "Draw", odd: "3.60" },
+              { value: "Away", odd: "4.80" }
+            ]
+          }]
+        }]
+      }
+    ]
+  });
+
+  assert.equal(market.bookmakers, 1);
+  assert.equal(market.bestPrices.home.odd, 1.8);
+  assert.equal(market.bestPrices.home.label, "Home");
+  assert.ok(market.probabilities.home > market.probabilities.draw);
+});
+
+test("creates a live 1X2 signal from match winner odds", () => {
+  const result = evaluateFixture({
+    fixture: makeFixture({ minute: 30, status: "1H", homeGoals: 0, awayGoals: 0 }),
+    statistics: { shotsOnTarget: 0, totalShots: 0, corners: 0, possession: 0, shotsInsideBox: 0 },
+    oddsResponse: [
+      {
+        odds: [{
+          name: "Book A",
+          bets: [{
+            name: "Match Winner",
+            values: [
+              { value: "Home", odd: "1.55" },
+              { value: "Draw", odd: "4.00" },
+              { value: "Away", odd: "6.00" }
+            ]
+          }]
+        }]
+      }
+    ],
+    config
+  });
+  const signal = result.signals.find((item) => item.type === "LIVE_1X2_HOME");
+
+  assert.equal(result.hasStatistics, false);
+  assert.equal(signal.label, "Live 1X2 lean: Home");
+  assert.equal(signal.price.label, "Home");
+  assert.equal(signal.level, "watch");
 });
 
 test("surfaces red cards as unstable match context", () => {
