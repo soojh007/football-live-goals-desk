@@ -7,8 +7,9 @@ A low-quota API-Football workflow with:
 The digest scans cover the countries and competitions listed in `config.json`.
 Countries currently include China, Japan, South-Korea, Australia, Sweden,
 Finland, Iceland, Ireland, USA, England, Spain, Germany, Italy, Netherlands,
-and France. Competition filters include World Cup, Euro Championship, UEFA
-Champions League, UEFA Europa League, and UEFA Europa Conference League.
+France, Scotland, Mexico, and Norway. Competition filters include World Cup,
+Euro Championship, UEFA Champions League, UEFA Europa League, and UEFA Europa
+Conference League.
 
 ## Request budget
 
