@@ -2,15 +2,13 @@
 
 A low-quota API-Football workflow with:
 
-- rolling cron emails of likely 1X2 match-result picks inferred from current odds;
-- five-minute cron scans for in-game goal alerts.
+- rolling cron emails of likely 1X2 match-result picks inferred from current odds.
 
-The digest and live-alert scans cover the countries and competitions listed in
-`config.json`. Countries currently include China, Japan, South-Korea,
-Australia, Sweden, Finland, Iceland, Ireland, USA, England, Spain, Germany,
-Italy, Netherlands, and France. Competition filters include World Cup, Euro
-Championship, UEFA Champions League, UEFA Europa League, and UEFA Europa
-Conference League.
+The digest scans cover the countries and competitions listed in `config.json`.
+Countries currently include China, Japan, South-Korea, Australia, Sweden,
+Finland, Iceland, Ireland, USA, England, Spain, Germany, Italy, Netherlands,
+and France. Competition filters include World Cup, Euro Championship, UEFA
+Champions League, UEFA Europa League, and UEFA Europa Conference League.
 
 ## Request budget
 
@@ -22,13 +20,6 @@ Each rolling email uses:
 The default is therefore at most 27 API requests per email. There are six
 scheduled emails per day, so the normal cap is about 162 API requests per day.
 Results with insufficient data are removed before ranking.
-
-Each live-alert scan uses:
-
-- one live fixtures request;
-- one statistics request per focused live match inside the configured windows;
-- one live-odds request for matches with actionable goal-pressure signals or
-  when live 1X2 alerts are enabled.
 
 ## Local setup
 
@@ -57,7 +48,7 @@ Run and email the digest:
 npm run digest
 ```
 
-Run one in-game alert scan:
+Run one manual in-game alert scan:
 
 ```sh
 npm run live-alerts
@@ -92,9 +83,7 @@ probability.
 `render.yaml` defines:
 
 - `football-daily-digest`, a Cron Job that sends at `07:00`, `11:00`,
-  `15:00`, `19:00`, `23:00`, and `03:00` Singapore time;
-- `football-live-alerts`, a Cron Job that scans every five minutes and emails
-  qualifying in-game signals.
+  `15:00`, `19:00`, `23:00`, and `03:00` Singapore time.
 
 When the Blueprint sync creates the cron job, enter:
 
@@ -119,14 +108,6 @@ No web service is required for the cron digest.
 - `ODDS_AGENT_MINIMUM_ODD=1.5`: minimum selected outcome price
 - `ODDS_AGENT_MAXIMUM_ODD=3.5`: maximum selected outcome price
 - `ODDS_AGENT_MAXIMUM_PRICE_SPREAD=0.35`: maximum bookmaker price disagreement
-- `ALERT_MIN_LEVEL=watch`: minimum in-game signal level to email
-- `ALERT_COOLDOWN_MINUTES=90`: Resend idempotency bucket for duplicate live alerts
-- `STATISTICS_REFRESH_SECONDS=120`: live statistics cache setting used within one scan
-- `UNAVAILABLE_RETRY_SECONDS=900`: retry setting for matches without statistics
-- `ODDS_REFRESH_SECONDS=300`: live odds refresh setting used within one scan
-- `MATCH_WINNER_ENABLED=true`: enable live 1X2 alerts from live match-winner odds
-- `MATCH_WINNER_MINIMUM_PROBABILITY=0.58`: minimum live odds-implied top outcome probability
-- `MATCH_WINNER_MINIMUM_EDGE=0.08`: minimum live 1X2 edge over the second outcome
 
 ## Tests
 
