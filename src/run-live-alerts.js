@@ -11,17 +11,20 @@ loadEnv();
 const root = path.resolve(".");
 const config = readConfig();
 config.matchWinner = configuredMatchWinner(config.matchWinner);
+const liveAlertsEnabled = parseBoolean(process.env.LIVE_ALERTS_ENABLED, false);
 const monitor = new LiveMonitor({
   client: new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY }),
   store: new SnapshotStore(path.join(root, "data")),
-  alerts: new EmailAlerts({
-    apiKey: process.env.RESEND_API_KEY,
-    to: process.env.ALERT_EMAIL_TO,
-    from: process.env.ALERT_EMAIL_FROM,
-    minimumLevel: process.env.ALERT_MIN_LEVEL ?? "watch",
-    dashboardUrl: process.env.PUBLIC_URL ?? "",
-    cooldownMinutes: clampInteger(process.env.ALERT_COOLDOWN_MINUTES, 90, 1, 360)
-  }),
+  alerts: liveAlertsEnabled
+    ? new EmailAlerts({
+        apiKey: process.env.RESEND_API_KEY,
+        to: process.env.ALERT_EMAIL_TO,
+        from: process.env.ALERT_EMAIL_FROM,
+        minimumLevel: process.env.ALERT_MIN_LEVEL ?? "watch",
+        dashboardUrl: process.env.PUBLIC_URL ?? "",
+        cooldownMinutes: clampInteger(process.env.ALERT_COOLDOWN_MINUTES, 90, 1, 360)
+      })
+    : null,
   configPath: path.join(root, "config.json"),
   configOverrides: { matchWinner: config.matchWinner },
   statisticsRefreshSeconds: clampInteger(process.env.STATISTICS_REFRESH_SECONDS, 120, 30, 900),
@@ -44,7 +47,7 @@ console.log(
     `Live alert scan complete: ${state.fixtures.length} focused matches`,
     `${actionable} actionable signals`,
     `${state.alerts.sent ?? 0} emails sent`,
-    `alerts ${state.alerts.enabled ? "enabled" : "disabled"}`,
+    `alerts ${liveAlertsEnabled && state.alerts.enabled ? "enabled" : "disabled"}`,
     `countries ${(config.liveCountries ?? []).join(", ") || "all"}`,
     `leagues ${(config.liveLeagues ?? []).join(", ") || "all"}`,
     `requests left ${state.remainingRequests ?? "unknown"}`
