@@ -82,6 +82,25 @@ test("selects fixtures from configured digest leagues", () => {
   );
 });
 
+test("selects country-qualified digest leagues without matching every same-named league", () => {
+  const fixtures = [
+    makeFixture(1, "Chile", "2026-06-13T10:00:00+08:00", "Primera División"),
+    makeFixture(2, "Peru", "2026-06-13T11:00:00+08:00", "Primera División")
+  ];
+  const selected = selectUpcomingFixtures(fixtures, {
+    maxAnalyses: 10,
+    start: new Date("2026-06-13T09:00:00+08:00"),
+    end: new Date("2026-06-13T13:00:00+08:00"),
+    countries: [],
+    leagues: ["Chile:Primera División"]
+  });
+
+  assert.deepEqual(
+    selected.map((fixture) => `${fixture.league.country}:${fixture.league.name}`),
+    ["Chile:Primera División"]
+  );
+});
+
 test("analyses 1X2 picks from normalized bookmaker odds", () => {
   const candidate = analyzeOdds(
     makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),

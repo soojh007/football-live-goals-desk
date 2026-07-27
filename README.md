@@ -9,7 +9,8 @@ Countries currently include China, Japan, South-Korea, Australia, Sweden,
 Finland, Iceland, Ireland, USA, England, Spain, Germany, Italy, Netherlands,
 France, Scotland, Mexico, and Norway. Competition filters include World Cup,
 Euro Championship, UEFA Champions League, UEFA Europa League, and UEFA Europa
-Conference League.
+Conference League, Allsvenskan, Eliteserien, Liga Profesional Argentina,
+Chile Primera División, and AFF Championship.
 
 ## Request budget
 
@@ -104,7 +105,7 @@ No web service is required for the cron digest.
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
-- `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`
+- `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`; use `Country:League` for generic names such as `Chile:Primera División`
 - `DIGEST_CONCURRENCY=4`: simultaneous odds requests
 - `ODDS_AGENT_MINIMUM_BOOKMAKERS=3`: minimum 1X2 bookmakers required
 - `ODDS_AGENT_MINIMUM_TOP_PROBABILITY=0.45`: minimum normalized top outcome probability

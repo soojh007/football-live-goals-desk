@@ -55,9 +55,12 @@ function normalizedFixtureFilters({ countries, leagues }) {
 
 function fixtureAllowed(fixture, filters) {
   if (!filters.countries.size && !filters.leagues.size) return true;
+  const country = normalizeFilterValue(fixture.league?.country);
+  const league = normalizeFilterValue(fixture.league?.name);
   return (
-    filters.countries.has(normalizeFilterValue(fixture.league?.country)) ||
-    filters.leagues.has(normalizeFilterValue(fixture.league?.name))
+    filters.countries.has(country) ||
+    filters.leagues.has(league) ||
+    filters.leagues.has(`${country}:${league}`)
   );
 }
 
