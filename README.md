@@ -2,7 +2,7 @@
 
 A low-quota API-Football workflow with:
 
-- rolling cron emails of likely 1X2 match-result picks inferred from current odds.
+- rolling cron emails of likely 1X2 and Asian Handicap picks inferred from current odds.
 
 The digest scans cover the countries and competitions listed in `config.json`.
 Countries currently include China, Japan, South-Korea, Australia, Sweden,
@@ -61,6 +61,7 @@ npm run live-alerts
 The digest model combines:
 
 - current bookmaker 1X2 odds from API-Football;
+- current bookmaker Asian Handicap odds from API-Football;
 - normalized implied probabilities with bookmaker margin removed;
 - the best available price for the selected outcome;
 - the number of bookmakers sampled;
@@ -73,9 +74,10 @@ reasonable odds, and limited bookmaker disagreement.
 The digest main signal focuses on:
 
 - `1X2 match result`: likely home win, draw, or away win
+- `Asian Handicap`: likely side against the strongest available handicap line
 
-Matches without usable 1X2 odds are skipped. BTTS is not used as an email
-signal.
+Matches without usable 1X2 or Asian Handicap odds are skipped. BTTS is not used
+as an email signal.
 
 The final score is a ranking heuristic, not a guaranteed result or calibrated
 probability.

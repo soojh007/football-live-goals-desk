@@ -97,6 +97,7 @@ function formatWindow(report) {
 
 function signalColor(signal) {
   if (signal?.kind === "RESULT") return "#1f6feb";
+  if (signal?.kind === "HANDICAP") return "#087f5b";
   if (signal?.kind === "BTTS") return signal.pick === "Yes" ? "#087f5b" : "#9a6700";
   return signal?.pick === "Over 2.5" ? "#087f5b" : "#9a6700";
 }

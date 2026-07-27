@@ -159,13 +159,22 @@ export function analyzePrediction(fixture, predictionResponse) {
 }
 
 export function analyzeOdds(fixture, oddsResponse = [], { agentConfig = {} } = {}) {
+  const candidates = [
+    buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }),
+    buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig })
+  ].filter(Boolean);
+
+  if (!candidates.length) return null;
+  return candidates.sort(compareOddsCandidates)[0];
+}
+
+function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
   const market = summarizeMatchWinnerOdds({
     home: fixture.teams.home.name,
     away: fixture.teams.away.name,
     oddsResponse
   });
   if (!market) return null;
-
   const options = [
     {
       key: "home",
@@ -233,6 +242,86 @@ export function analyzeOdds(fixture, oddsResponse = [], { agentConfig = {} } = {
       `Agent verdict: PASS - ${verdict.reasons.join("; ")}`
     ]
   };
+}
+
+function buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig }) {
+  const market = summarizeAsianHandicapOdds({
+    home: fixture.teams.home.name,
+    away: fixture.teams.away.name,
+    oddsResponse
+  });
+  if (!market) return null;
+
+  const homePick = formatHandicapPick(fixture.teams.home.name, market.homeLine);
+  const awayPick = formatHandicapPick(fixture.teams.away.name, -market.homeLine);
+  const options = [
+    {
+      key: "home",
+      pick: homePick,
+      label: `Likely ${homePick}`,
+      probability: market.probabilities.home
+    },
+    {
+      key: "away",
+      pick: awayPick,
+      label: `Likely ${awayPick}`,
+      probability: market.probabilities.away
+    }
+  ].sort((a, b) => b.probability - a.probability);
+  const [best, next] = options;
+  const rankScore = Math.round(best.probability * 100);
+  const candidate = {
+    fixtureId: fixture.fixture.id,
+    kickoff: fixture.fixture.date,
+    country: fixture.league?.country ?? "International",
+    league: fixture.league?.name ?? "Unknown competition",
+    home: fixture.teams.home.name,
+    away: fixture.teams.away.name,
+    side: `AH_${best.key.toUpperCase()}`,
+    label: best.label,
+    mainSignal: {
+      market: "Asian Handicap odds",
+      pick: best.pick,
+      label: best.label,
+      kind: "HANDICAP",
+      score: clamp(rankScore, 25, 90)
+    },
+    rankScore,
+    dataQuality: market.bookmakers >= 5 ? "high" : market.bookmakers >= 2 ? "medium" : "limited",
+    projectedGoals: null,
+    advice: "",
+    underOver: "",
+    winner: best.pick,
+    winnerComment: "Inferred from current Asian Handicap odds",
+    percent: {
+      home: formatPercent(market.probabilities.home),
+      draw: "",
+      away: formatPercent(market.probabilities.away)
+    },
+    form: { home: "", away: "" },
+    reasons: [
+      `Asian Handicap line: ${formatHandicapPick(fixture.teams.home.name, market.homeLine)} / ${formatHandicapPick(fixture.teams.away.name, -market.homeLine)}`,
+      `Odds-implied split: ${formatPercent(market.probabilities.home)}/${formatPercent(market.probabilities.away)}`,
+      `Best current price: ${best.pick} @ ${market.bestPrices[best.key].odd} (${market.bestPrices[best.key].bookmaker})`,
+      `Bookmakers sampled: ${market.bookmakers}`,
+      `Market edge over next side: ${formatPercent(best.probability - next.probability)}`
+    ]
+  };
+  const verdict = evaluateOddsCandidate({ candidate, market, best, next, config: agentConfig });
+  if (!verdict.passed) return null;
+  return {
+    ...candidate,
+    reasons: [
+      ...candidate.reasons,
+      `Agent verdict: PASS - ${verdict.reasons.join("; ")}`
+    ]
+  };
+}
+
+function compareOddsCandidates(a, b) {
+  const kickoffDifference = new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime();
+  const qualityDifference = qualityRank(b.dataQuality) - qualityRank(a.dataQuality);
+  return qualityDifference || b.rankScore - a.rankScore || kickoffDifference;
 }
 
 export function rankDigestCandidates(candidates, limit = 12) {
@@ -448,6 +537,73 @@ function summarizeMatchWinnerOdds({ home, away, oddsResponse }) {
   };
 }
 
+function summarizeAsianHandicapOdds({ home, away, oddsResponse }) {
+  const marketsByLine = new Map();
+
+  for (const fixtureOdds of oddsResponse) {
+    for (const bookmaker of fixtureOdds.bookmakers ?? []) {
+      for (const bet of bookmaker.bets ?? []) {
+        if (!isAsianHandicapMarket(bet.name)) continue;
+        const pricesByLine = parseAsianHandicapPrices({ bet, home, away });
+        for (const [homeLine, prices] of pricesByLine) {
+          if (!marketsByLine.has(homeLine)) {
+            marketsByLine.set(homeLine, {
+              homeLine,
+              snapshots: [],
+              bestPrices: { home: null, away: null },
+              priceLists: { home: [], away: [] }
+            });
+          }
+          const market = marketsByLine.get(homeLine);
+          for (const key of ["home", "away"]) {
+            market.priceLists[key].push(prices[key]);
+            if (!market.bestPrices[key] || prices[key] > market.bestPrices[key].odd) {
+              market.bestPrices[key] = {
+                odd: prices[key],
+                bookmaker: bookmaker.name ?? "Unknown bookmaker"
+              };
+            }
+          }
+
+          const implied = {
+            home: 1 / prices.home,
+            away: 1 / prices.away
+          };
+          const total = implied.home + implied.away;
+          if (!Number.isFinite(total) || total <= 0) continue;
+          market.snapshots.push({
+            home: implied.home / total,
+            away: implied.away / total
+          });
+        }
+      }
+    }
+  }
+
+  const markets = [...marketsByLine.values()]
+    .filter((market) => market.snapshots.length && market.bestPrices.home && market.bestPrices.away)
+    .map((market) => ({
+      homeLine: market.homeLine,
+      probabilities: {
+        home: average(market.snapshots.map((item) => item.home)),
+        away: average(market.snapshots.map((item) => item.away))
+      },
+      bestPrices: market.bestPrices,
+      priceSpreads: {
+        home: priceSpread(market.priceLists.home),
+        away: priceSpread(market.priceLists.away)
+      },
+      bookmakers: market.snapshots.length
+    }));
+
+  if (!markets.length) return null;
+  return markets.sort((a, b) => {
+    const aEdge = Math.abs(a.probabilities.home - a.probabilities.away);
+    const bEdge = Math.abs(b.probabilities.home - b.probabilities.away);
+    return bEdge - aEdge || b.bookmakers - a.bookmakers;
+  })[0];
+}
+
 function priceSpread(values) {
   if (!values.length) return 0;
   return Math.max(...values) - Math.min(...values);
@@ -479,6 +635,57 @@ function matchWinnerKey(value, { home, away }) {
   if (["draw", "x"].includes(normalized)) return "draw";
   if (["away", "2"].includes(normalized) || normalized === normalizeName(away)) return "away";
   return null;
+}
+
+function isAsianHandicapMarket(name = "") {
+  const normalized = String(name).toLowerCase();
+  return /asian handicap|handicap/.test(normalized) && !/corner|card|1st|2nd|half|period/.test(normalized);
+}
+
+function parseAsianHandicapPrices({ bet, home, away }) {
+  const partials = new Map();
+  for (const value of bet.values ?? []) {
+    const parsed = parseAsianHandicapValue(value.value, { home, away });
+    const odd = Number.parseFloat(value.odd);
+    if (!parsed || !Number.isFinite(odd) || odd <= 1) continue;
+
+    const homeLine = parsed.side === "home" ? parsed.line : -parsed.line;
+    if (!partials.has(homeLine)) partials.set(homeLine, {});
+    partials.get(homeLine)[parsed.side] = odd;
+  }
+
+  const complete = new Map();
+  for (const [homeLine, prices] of partials) {
+    if (prices.home && prices.away) complete.set(homeLine, prices);
+  }
+  return complete;
+}
+
+function parseAsianHandicapValue(value, { home, away }) {
+  const text = String(value ?? "").trim();
+  const match = text.match(/^(.*?)\s*([+-]?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+
+  const side = handicapSide(match[1], { home, away });
+  const line = Number.parseFloat(match[2]);
+  if (!side || !Number.isFinite(line)) return null;
+  return { side, line };
+}
+
+function handicapSide(value, { home, away }) {
+  const normalized = normalizeName(value);
+  if (["home", "1"].includes(normalized) || normalized === normalizeName(home)) return "home";
+  if (["away", "2"].includes(normalized) || normalized === normalizeName(away)) return "away";
+  return null;
+}
+
+function formatHandicapPick(team, line) {
+  return `${team} ${formatSignedLine(line)}`;
+}
+
+function formatSignedLine(line) {
+  if (Object.is(line, -0) || line === 0) return "0";
+  return `${line > 0 ? "+" : ""}${line}`;
 }
 
 function formatPercent(value) {

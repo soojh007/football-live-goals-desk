@@ -109,6 +109,37 @@ test("skips odds analysis when 1X2 odds are unavailable", () => {
   assert.equal(candidate, null);
 });
 
+test("analyses Asian Handicap picks from normalized bookmaker odds", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "Japan", "2026-06-13T18:00:00+08:00"),
+    makeAsianHandicapOddsResponse([
+      { bookmaker: "A", homeLine: -0.5, home: 1.72, away: 2.18 },
+      { bookmaker: "B", homeLine: -0.5, home: 1.74, away: 2.14 },
+      { bookmaker: "C", homeLine: -0.5, home: 1.76, away: 2.12 }
+    ])
+  );
+
+  assert.equal(candidate.mainSignal.market, "Asian Handicap odds");
+  assert.equal(candidate.mainSignal.pick, "Home 1 -0.5");
+  assert.equal(candidate.mainSignal.kind, "HANDICAP");
+  assert.match(candidate.reasons.join(" "), /Asian Handicap line: Home 1 -0.5 \/ Away 1 \+0.5/);
+  assert.match(candidate.reasons.join(" "), /Agent verdict: PASS/);
+});
+
+test("prefers Asian Handicap when it has the stronger odds edge", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "Japan", "2026-06-13T18:00:00+08:00"),
+    makeCombinedOddsResponse([
+      { bookmaker: "A", home: 1.9, draw: 3.4, away: 4.2, homeLine: -0.5, ahHome: 1.72, ahAway: 2.18 },
+      { bookmaker: "B", home: 1.85, draw: 3.5, away: 4.5, homeLine: -0.5, ahHome: 1.74, ahAway: 2.14 },
+      { bookmaker: "C", home: 1.91, draw: 3.3, away: 4.4, homeLine: -0.5, ahHome: 1.76, ahAway: 2.12 }
+    ])
+  );
+
+  assert.equal(candidate.mainSignal.market, "Asian Handicap odds");
+  assert.equal(candidate.mainSignal.pick, "Home 1 -0.5");
+});
+
 test("odds agent rejects weak market edges", () => {
   const candidate = analyzeOdds(
     makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
@@ -269,6 +300,57 @@ function makeOddsResponse(bookmakers) {
       }))
     }
   ];
+}
+
+function makeAsianHandicapOddsResponse(bookmakers) {
+  return [
+    {
+      bookmakers: bookmakers.map(({ bookmaker, homeLine, home, away }) => ({
+        name: bookmaker,
+        bets: [
+          {
+            name: "Asian Handicap",
+            values: [
+              { value: `Home ${formatSignedLine(homeLine)}`, odd: String(home) },
+              { value: `Away ${formatSignedLine(-homeLine)}`, odd: String(away) }
+            ]
+          }
+        ]
+      }))
+    }
+  ];
+}
+
+function makeCombinedOddsResponse(bookmakers) {
+  return [
+    {
+      bookmakers: bookmakers.map(({ bookmaker, home, draw, away, homeLine, ahHome, ahAway }) => ({
+        name: bookmaker,
+        bets: [
+          {
+            name: "Match Winner",
+            values: [
+              { value: "Home", odd: String(home) },
+              { value: "Draw", odd: String(draw) },
+              { value: "Away", odd: String(away) }
+            ]
+          },
+          {
+            name: "Asian Handicap",
+            values: [
+              { value: `Home ${formatSignedLine(homeLine)}`, odd: String(ahHome) },
+              { value: `Away ${formatSignedLine(-homeLine)}`, odd: String(ahAway) }
+            ]
+          }
+        ]
+      }))
+    }
+  ];
+}
+
+function formatSignedLine(line) {
+  if (Object.is(line, -0) || line === 0) return "0";
+  return `${line > 0 ? "+" : ""}${line}`;
 }
 
 function makePrediction({
