@@ -66,7 +66,8 @@ The digest model combines:
 - normalized implied probabilities with bookmaker margin removed;
 - the best available price for the selected outcome;
 - the number of bookmakers sampled;
-- the market edge over the next most likely outcome.
+- the market edge over the next most likely outcome;
+- local historical calibration once enough settled digest picks have been collected.
 
 An odds-agent filter then rejects weak picks before email delivery. By default
 it requires enough bookmaker coverage, a meaningful edge over the next outcome,
@@ -82,6 +83,18 @@ as an email signal.
 
 The final score is a ranking heuristic, not a guaranteed result or calibrated
 probability.
+
+## Calibration
+
+Each digest stores its selected picks in `data/digest-candidates-YYYY-MM-DD.jsonl`.
+On the next digest runs, old candidates are checked against finished match
+results and written to `data/calibration-results-YYYY-MM-DD.jsonl`.
+
+Until enough local samples exist, picks show `Calibration: collecting local
+result history`. After the sample threshold is met, the digest adds league or
+market calibration to the pick explanation and adjusts ranking using historical
+ROI. This changes the workflow from "most likely outcome" toward "is this price
+historically worth taking?"
 
 ## Render
 
@@ -104,6 +117,7 @@ No web service is required for the cron digest.
 - `DIGEST_MAX_ANALYSES=25`: hard cap on odds calls per email
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
+- `CALIBRATION_MINIMUM_SAMPLES=12`: settled local picks required before calibration affects ranking
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
 - `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`; use `Country:League` for generic names such as `Chile:Primera División`
 - `DIGEST_CONCURRENCY=4`: simultaneous odds requests

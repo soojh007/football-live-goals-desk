@@ -161,14 +161,20 @@ export function analyzePrediction(fixture, predictionResponse) {
   };
 }
 
-export function analyzeOdds(fixture, oddsResponse = [], { agentConfig = {} } = {}) {
+export function analyzeOdds(
+  fixture,
+  oddsResponse = [],
+  { agentConfig = {}, calibrationStats = null } = {}
+) {
   const candidates = [
     buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }),
     buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig })
   ].filter(Boolean);
 
   if (!candidates.length) return null;
-  return candidates.sort(compareOddsCandidates)[0];
+  return candidates
+    .map((candidate) => applyCalibration(candidate, calibrationStats))
+    .sort(compareOddsCandidates)[0];
 }
 
 function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
@@ -200,6 +206,7 @@ function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
   ].sort((a, b) => b.probability - a.probability);
   const [best, next] = options;
   const rankScore = Math.round(best.probability * 100);
+  const selectedPrice = market.bestPrices[best.key];
   const candidate = {
     fixtureId: fixture.fixture.id,
     kickoff: fixture.fixture.date,
@@ -209,6 +216,12 @@ function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
     away: fixture.teams.away.name,
     side: best.key.toUpperCase(),
     label: best.label,
+    marketType: "1X2",
+    selection: best.key,
+    selectedOdd: selectedPrice.odd,
+    selectedBookmaker: selectedPrice.bookmaker,
+    impliedProbability: round(best.probability, 4),
+    marketEdge: round(best.probability - next.probability, 4),
     mainSignal: {
       market: "1X2 market odds",
       pick: best.pick,
@@ -217,6 +230,7 @@ function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
       score: clamp(rankScore, 25, 90)
     },
     rankScore,
+    baseRankScore: rankScore,
     dataQuality: market.bookmakers >= 5 ? "high" : market.bookmakers >= 2 ? "medium" : "limited",
     projectedGoals: null,
     advice: "",
@@ -231,7 +245,7 @@ function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
     form: { home: "", away: "" },
     reasons: [
       `Odds-implied split: ${formatPercent(market.probabilities.home)}/${formatPercent(market.probabilities.draw)}/${formatPercent(market.probabilities.away)}`,
-      `Best current price: ${best.pick} @ ${market.bestPrices[best.key].odd} (${market.bestPrices[best.key].bookmaker})`,
+      `Best current price: ${best.pick} @ ${selectedPrice.odd} (${selectedPrice.bookmaker})`,
       `Bookmakers sampled: ${market.bookmakers}`,
       `Market edge over next outcome: ${formatPercent(best.probability - next.probability)}`
     ]
@@ -273,6 +287,8 @@ function buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig }) {
   ].sort((a, b) => b.probability - a.probability);
   const [best, next] = options;
   const rankScore = Math.round(best.probability * 100);
+  const selectedPrice = market.bestPrices[best.key];
+  const selectedHandicapLine = best.key === "home" ? market.homeLine : -market.homeLine;
   const candidate = {
     fixtureId: fixture.fixture.id,
     kickoff: fixture.fixture.date,
@@ -282,6 +298,13 @@ function buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig }) {
     away: fixture.teams.away.name,
     side: `AH_${best.key.toUpperCase()}`,
     label: best.label,
+    marketType: "AH",
+    selection: best.key,
+    handicapLine: selectedHandicapLine,
+    selectedOdd: selectedPrice.odd,
+    selectedBookmaker: selectedPrice.bookmaker,
+    impliedProbability: round(best.probability, 4),
+    marketEdge: round(best.probability - next.probability, 4),
     mainSignal: {
       market: "Asian Handicap odds",
       pick: best.pick,
@@ -290,6 +313,7 @@ function buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig }) {
       score: clamp(rankScore, 25, 90)
     },
     rankScore,
+    baseRankScore: rankScore,
     dataQuality: market.bookmakers >= 5 ? "high" : market.bookmakers >= 2 ? "medium" : "limited",
     projectedGoals: null,
     advice: "",
@@ -305,7 +329,7 @@ function buildAsianHandicapCandidate({ fixture, oddsResponse, agentConfig }) {
     reasons: [
       `Asian Handicap line: ${formatHandicapPick(fixture.teams.home.name, market.homeLine)} / ${formatHandicapPick(fixture.teams.away.name, -market.homeLine)}`,
       `Odds-implied split: ${formatPercent(market.probabilities.home)}/${formatPercent(market.probabilities.away)}`,
-      `Best current price: ${best.pick} @ ${market.bestPrices[best.key].odd} (${market.bestPrices[best.key].bookmaker})`,
+      `Best current price: ${best.pick} @ ${selectedPrice.odd} (${selectedPrice.bookmaker})`,
       `Bookmakers sampled: ${market.bookmakers}`,
       `Market edge over next side: ${formatPercent(best.probability - next.probability)}`
     ]
@@ -325,6 +349,43 @@ function compareOddsCandidates(a, b) {
   const kickoffDifference = new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime();
   const qualityDifference = qualityRank(b.dataQuality) - qualityRank(a.dataQuality);
   return qualityDifference || b.rankScore - a.rankScore || kickoffDifference;
+}
+
+function applyCalibration(candidate, calibrationStats) {
+  const stats = calibrationStats?.forCandidate?.(candidate);
+  if (!stats) {
+    return {
+      ...candidate,
+      calibration: { status: "collecting", samples: 0 },
+      reasons: [...candidate.reasons, "Calibration: collecting local result history"]
+    };
+  }
+
+  const hitRate = stats.decisions ? stats.wins / stats.decisions : 0;
+  const roi = stats.staked ? stats.profit / stats.staked : 0;
+  const adjustment = clamp(Math.round(roi * 20), -8, 8);
+  const rankScore = clamp(candidate.rankScore + adjustment, 25, 95);
+  return {
+    ...candidate,
+    rankScore,
+    mainSignal: {
+      ...candidate.mainSignal,
+      score: clamp(candidate.mainSignal.score + adjustment, 25, 95)
+    },
+    calibration: {
+      status: "ready",
+      scope: stats.scope,
+      samples: stats.samples,
+      decisions: stats.decisions,
+      hitRate: round(hitRate, 3),
+      roi: round(roi, 3),
+      adjustment
+    },
+    reasons: [
+      ...candidate.reasons,
+      `Calibration: ${stats.scope} ${stats.decisions} settled picks, ${formatPercent(hitRate)} hit rate, ${formatSignedPercent(roi)} ROI`
+    ]
+  };
 }
 
 export function rankDigestCandidates(candidates, limit = 12) {
@@ -693,6 +754,11 @@ function formatSignedLine(line) {
 
 function formatPercent(value) {
   return `${Math.round(value * 100)}%`;
+}
+
+function formatSignedPercent(value) {
+  const percent = Math.round(value * 100);
+  return `${percent > 0 ? "+" : ""}${percent}%`;
 }
 
 function percentageNumber(value) {

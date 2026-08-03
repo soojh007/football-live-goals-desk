@@ -61,6 +61,10 @@ export class ApiFootballClient {
     return this.request("/fixtures", { date, timezone });
   }
 
+  getFixtureById(fixtureId) {
+    return this.request("/fixtures", { id: fixtureId });
+  }
+
   getPrediction(fixtureId) {
     return this.request("/predictions", { fixture: fixtureId });
   }

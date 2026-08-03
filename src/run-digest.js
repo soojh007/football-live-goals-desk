@@ -8,6 +8,8 @@ import {
   selectUpcomingFixtures
 } from "./digest-engine.js";
 import { DigestEmail, renderDigestHtml } from "./digest-email.js";
+import { settleCandidate } from "./calibration.js";
+import { CalibrationStore } from "./calibration-store.js";
 
 loadEnv();
 
@@ -21,14 +23,25 @@ const dates = uniqueLocalDates(now, windowEnd, timezone);
 const maxAnalyses = clampInteger(process.env.DIGEST_MAX_ANALYSES, 25, 1, 100);
 const maxPicks = clampInteger(process.env.DIGEST_MAX_PICKS, 12, 1, 30);
 const concurrency = clampInteger(process.env.DIGEST_CONCURRENCY, 4, 1, 8);
+const calibrationMinimumSamples = clampInteger(process.env.CALIBRATION_MINIMUM_SAMPLES, 12, 1, 500);
 const dryRun = process.argv.includes("--dry-run");
 const client = new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
+const calibrationStore = new CalibrationStore(path.resolve("data"));
 const mailer = new DigestEmail({
   apiKey: process.env.RESEND_API_KEY,
   to: process.env.ALERT_EMAIL_TO,
   from: process.env.DIGEST_EMAIL_FROM ?? process.env.ALERT_EMAIL_FROM
 });
 
+const settlement = await settlePendingCandidates({
+  client,
+  store: calibrationStore,
+  now,
+  concurrency
+});
+const calibrationStats = calibrationStore.loadCalibrationStats({
+  minimumSamples: calibrationMinimumSamples
+});
 const fixtureResults = await Promise.all(
   dates.map((date) => client.getFixturesByDate(date, timezone))
 );
@@ -44,7 +57,10 @@ const analyses = await mapWithConcurrency(selected, concurrency, async (fixture)
   try {
     const result = await client.getFixtureOdds(fixture.fixture.id);
     if (!result.data[0]) return null;
-    return analyzeOdds(fixture, result.data, { agentConfig: config.oddsAgent });
+    return analyzeOdds(fixture, result.data, {
+      agentConfig: config.oddsAgent,
+      calibrationStats
+    });
   } catch (error) {
     console.warn(`Skipped fixture ${fixture.fixture.id}: ${error.message}`);
     return null;
@@ -61,7 +77,9 @@ const report = {
   fixturesFound: fixtures.length,
   upcomingFound: selected.length,
   analyzed: selected.length,
-  requestsUsed: dates.length + selected.length,
+  requestsUsed: dates.length + selected.length + settlement.checked,
+  settled: settlement.settled,
+  settlementChecked: settlement.checked,
   candidates
 };
 
@@ -71,6 +89,7 @@ const reportPath = path.resolve("data", `digest-${fileStamp}.json`);
 const htmlPath = path.resolve("data", `digest-${fileStamp}.html`);
 fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
 fs.writeFileSync(htmlPath, renderDigestHtml(report));
+calibrationStore.appendDigestCandidates(report);
 
 if (!dryRun) {
   await mailer.send(report);
@@ -79,6 +98,28 @@ if (!dryRun) {
   );
 } else {
   console.log(`Dry run complete: ${htmlPath}`);
+}
+
+async function settlePendingCandidates({ client, store, now, concurrency }) {
+  const pending = store.loadPendingCandidates({ now });
+  const settled = await mapWithConcurrency(pending, concurrency, async (candidate) => {
+    try {
+      const result = await client.getFixtureById(candidate.fixtureId);
+      const fixture = result.data[0];
+      if (!fixture) return null;
+      return settleCandidate(candidate, fixture);
+    } catch (error) {
+      console.warn(`Skipped settlement for fixture ${candidate.fixtureId}: ${error.message}`);
+      return null;
+    }
+  });
+
+  let settledCount = 0;
+  for (const result of settled.filter(Boolean)) {
+    store.appendSettledResult(result);
+    settledCount++;
+  }
+  return { checked: pending.length, settled: settledCount };
 }
 
 function uniqueLocalDates(start, end, timeZone) {

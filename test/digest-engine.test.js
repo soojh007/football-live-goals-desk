@@ -197,6 +197,36 @@ test("odds agent can be disabled for diagnostics", () => {
   assert.match(candidate.reasons.join(" "), /Agent verdict: PASS - Agent disabled/);
 });
 
+test("adds calibration context and rank adjustment when local history is ready", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    makeOddsResponse([
+      { bookmaker: "A", home: 1.9, draw: 3.4, away: 4.2 },
+      { bookmaker: "B", home: 1.85, draw: 3.5, away: 4.5 },
+      { bookmaker: "C", home: 1.91, draw: 3.3, away: 4.4 }
+    ]),
+    {
+      calibrationStats: {
+        forCandidate() {
+          return {
+            scope: "league-market",
+            samples: 20,
+            decisions: 20,
+            wins: 12,
+            staked: 20,
+            profit: 4
+          };
+        }
+      }
+    }
+  );
+
+  assert.equal(candidate.calibration.status, "ready");
+  assert.equal(candidate.calibration.roi, 0.2);
+  assert.equal(candidate.rankScore, candidate.baseRankScore + 4);
+  assert.match(candidate.reasons.join(" "), /Calibration: league-market 20 settled picks/);
+});
+
 test("analyses explicit over 2.5 candidate from team goal averages", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Netherlands", "2026-06-13T18:00:00+08:00"),
