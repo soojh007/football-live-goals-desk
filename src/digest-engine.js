@@ -178,6 +178,94 @@ export function analyzeOdds(
     .sort(compareOddsCandidates)[0];
 }
 
+export function analyzeModelSignals(
+  fixture,
+  modelSignals,
+  { agentConfig = {}, calibrationStats = null } = {}
+) {
+  const probabilityRecord = (modelSignals?.probabilities ?? [])
+    .find((item) => item.marketType === "1X2" && item.probabilities);
+  if (!probabilityRecord) return null;
+
+  const options = [
+    {
+      key: "home",
+      pick: fixture.teams.home.name,
+      label: `Likely ${fixture.teams.home.name} win`,
+      probability: probabilityRecord.probabilities.home
+    },
+    {
+      key: "draw",
+      pick: "Draw",
+      label: "Likely draw",
+      probability: probabilityRecord.probabilities.draw
+    },
+    {
+      key: "away",
+      pick: fixture.teams.away.name,
+      label: `Likely ${fixture.teams.away.name} win`,
+      probability: probabilityRecord.probabilities.away
+    }
+  ]
+    .filter((option) => Number.isFinite(option.probability))
+    .sort((a, b) => b.probability - a.probability);
+  if (options.length < 3) return null;
+
+  const [best, next] = options;
+  const edge = best.probability - next.probability;
+  const minimumTopProbability = agentConfig.minimumTopProbability ?? 0.45;
+  const minimumEdge = agentConfig.minimumEdge ?? 0.08;
+  if (best.probability < minimumTopProbability || edge < minimumEdge) return null;
+
+  const rankScore = Math.round(best.probability * 100);
+  const candidate = {
+    fixtureId: fixture.fixture.id,
+    kickoff: fixture.fixture.date,
+    country: fixture.league?.country ?? "International",
+    league: fixture.league?.name ?? "Unknown competition",
+    home: fixture.teams.home.name,
+    away: fixture.teams.away.name,
+    side: best.key.toUpperCase(),
+    label: best.label,
+    marketType: "1X2",
+    selection: best.key,
+    selectedOdd: null,
+    selectedBookmaker: "",
+    impliedProbability: round(best.probability, 4),
+    marketEdge: round(edge, 4),
+    mainSignal: {
+      market: "SportsMonks probability",
+      pick: best.pick,
+      label: best.label,
+      kind: "RESULT",
+      score: clamp(rankScore, 25, 86)
+    },
+    rankScore: clamp(rankScore, 25, 86),
+    baseRankScore: clamp(rankScore, 25, 86),
+    dataQuality: best.probability >= 0.58 && edge >= 0.12 ? "high" : "medium",
+    projectedGoals: null,
+    advice: "",
+    underOver: "",
+    winner: best.pick,
+    winnerComment: "Inferred from SportsMonks probabilities because odds access is unavailable",
+    percent: {
+      home: formatPercent(probabilityRecord.probabilities.home),
+      draw: formatPercent(probabilityRecord.probabilities.draw),
+      away: formatPercent(probabilityRecord.probabilities.away)
+    },
+    form: { home: "", away: "" },
+    modelSignals: { status: "probability-only", probability: round(best.probability, 4) },
+    calibration: { status: "collecting", samples: 0 },
+    reasons: [
+      `SportsMonks probability split: ${formatPercent(probabilityRecord.probabilities.home)}/${formatPercent(probabilityRecord.probabilities.draw)}/${formatPercent(probabilityRecord.probabilities.away)}`,
+      `Probability edge over next outcome: ${formatPercent(edge)}`,
+      "Odds endpoint unavailable on current SportsMonks plan"
+    ]
+  };
+
+  return applyCalibration(candidate, calibrationStats);
+}
+
 function buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }) {
   const market = summarizeMatchWinnerOdds({
     home: fixture.teams.home.name,

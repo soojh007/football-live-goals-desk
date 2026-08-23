@@ -199,7 +199,7 @@ test("normalizes SportsMonks value bets", async () => {
 
   const result = await client.getFixtureValueBets(1001);
 
-  assert.match(requests[0], /predictions\/value-bets\/fixture\/1001/);
+  assert.match(requests[0], /predictions\/valuebets\/fixtures\/1001/);
   assert.deepEqual(result.data, [
     {
       fixtureId: 1001,
@@ -237,7 +237,7 @@ test("normalizes SportsMonks 1X2 probabilities when labels are available", async
 
   const result = await client.getFixtureProbabilities(1001);
 
-  assert.match(requests[0], /predictions\/probabilities\/fixture\/1001/);
+  assert.match(requests[0], /predictions\/probabilities\/fixtures\/1001/);
   assert.deepEqual(result.data, [
     {
       fixtureId: 1001,

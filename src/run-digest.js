@@ -4,6 +4,7 @@ import { loadEnv } from "./env.js";
 import { ApiFootballClient } from "./api-football.js";
 import { SportMonksClient } from "./sportmonks-client.js";
 import {
+  analyzeModelSignals,
   analyzeOdds,
   rankDigestCandidates,
   selectUpcomingFixtures
@@ -27,6 +28,8 @@ const concurrency = clampInteger(process.env.DIGEST_CONCURRENCY, 4, 1, 8);
 const calibrationMinimumSamples = clampInteger(process.env.CALIBRATION_MINIMUM_SAMPLES, 12, 1, 500);
 const modelSignalsEnabled = parseBoolean(process.env.SPORTMONKS_MODEL_SIGNALS_ENABLED, true);
 const dryRun = process.argv.includes("--dry-run");
+const optionalProviderWarnings = new Set();
+const providerAccessWarnings = new Set();
 const client = createDigestClient();
 const calibrationStore = new CalibrationStore(path.resolve("data"));
 const mailer = new DigestEmail({
@@ -59,11 +62,9 @@ const modelSignalRequests = modelSignalsEnabled && supportsModelSignals(client)
   ? selected.length * 2
   : 0;
 const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
+  const modelSignals = modelSignalsEnabled ? await getModelSignals(client, fixture.fixture.id) : null;
   try {
-    const [result, modelSignals] = await Promise.all([
-      client.getFixtureOdds(fixture.fixture.id),
-      modelSignalsEnabled ? getModelSignals(client, fixture.fixture.id) : null
-    ]);
+    const result = await client.getFixtureOdds(fixture.fixture.id);
     if (!result.data[0]) return null;
     return analyzeOdds(fixture, result.data, {
       agentConfig: config.oddsAgent,
@@ -71,6 +72,15 @@ const analyses = await mapWithConcurrency(selected, concurrency, async (fixture)
       modelSignals
     });
   } catch (error) {
+    if (isEndpointAccessError(error)) {
+      const probabilityCandidate = analyzeModelSignals(fixture, modelSignals, {
+        agentConfig: config.oddsAgent,
+        calibrationStats
+      });
+      if (probabilityCandidate) return probabilityCandidate;
+      warnEndpointAccessOnce("odds", error);
+      return null;
+    }
     console.warn(`Skipped fixture ${fixture.fixture.id}: ${error.message}`);
     return null;
   }
@@ -149,9 +159,32 @@ async function optionalProviderCall(client, method, fixtureId) {
   try {
     return await client[method](fixtureId);
   } catch (error) {
-    console.warn(`Skipped ${method} for fixture ${fixtureId}: ${error.message}`);
+    const warningKey = `${method}:${providerErrorStatus(error) ?? "unknown"}`;
+    if (!optionalProviderWarnings.has(warningKey)) {
+      optionalProviderWarnings.add(warningKey);
+      console.warn(`Skipped ${method}: ${error.message}`);
+    }
     return null;
   }
+}
+
+function isEndpointAccessError(error) {
+  const message = String(error?.message ?? "");
+  return /SportsMonks 403/.test(message) && /access to this endpoint/i.test(message);
+}
+
+function warnEndpointAccessOnce(endpoint, error) {
+  const warningKey = `${endpoint}:${providerErrorStatus(error) ?? "unknown"}`;
+  if (providerAccessWarnings.has(warningKey)) return;
+  providerAccessWarnings.add(warningKey);
+  console.warn(
+    `SportsMonks ${endpoint} endpoint unavailable on this subscription: ${error.message}`
+  );
+}
+
+function providerErrorStatus(error) {
+  const match = String(error?.message ?? "").match(/SportsMonks\s+(\d+)/);
+  return match?.[1] ?? null;
 }
 
 async function settlePendingCandidates({ client, store, now, concurrency }) {

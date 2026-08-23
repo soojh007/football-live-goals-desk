@@ -98,7 +98,7 @@ export class SportMonksClient {
   }
 
   async getFixtureProbabilities(fixtureId) {
-    const result = await this.requestAll(`/predictions/probabilities/fixture/${fixtureId}`, {
+    const result = await this.requestAll(`/predictions/probabilities/fixtures/${fixtureId}`, {
       include: "type"
     });
     return {
@@ -108,7 +108,7 @@ export class SportMonksClient {
   }
 
   async getFixtureValueBets(fixtureId) {
-    const result = await this.requestAll(`/predictions/value-bets/fixture/${fixtureId}`, {
+    const result = await this.requestAll(`/predictions/valuebets/fixtures/${fixtureId}`, {
       include: "type"
     });
     return {

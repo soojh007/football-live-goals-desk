@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  analyzeModelSignals,
   analyzeOdds,
   analyzePrediction,
   rankDigestCandidates,
@@ -225,6 +226,32 @@ test("adds calibration context and rank adjustment when local history is ready",
   assert.equal(candidate.calibration.roi, 0.2);
   assert.equal(candidate.rankScore, candidate.baseRankScore + 4);
   assert.match(candidate.reasons.join(" "), /Calibration: league-market 20 settled picks/);
+});
+
+test("builds a probability-only 1X2 candidate when odds are unavailable", () => {
+  const candidate = analyzeModelSignals(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    {
+      probabilities: [
+        {
+          marketType: "1X2",
+          probabilities: { home: 0.62, draw: 0.23, away: 0.15 }
+        }
+      ]
+    },
+    {
+      agentConfig: {
+        minimumTopProbability: 0.45,
+        minimumEdge: 0.08
+      }
+    }
+  );
+
+  assert.equal(candidate.marketType, "1X2");
+  assert.equal(candidate.selection, "home");
+  assert.equal(candidate.mainSignal.market, "SportsMonks probability");
+  assert.equal(candidate.dataQuality, "high");
+  assert.match(candidate.reasons.join(" "), /Odds endpoint unavailable/);
 });
 
 test("adds SportsMonks value and probability context to 1X2 candidates", () => {
