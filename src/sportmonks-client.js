@@ -3,8 +3,9 @@ const FIXTURE_INCLUDE = "participants;league.country;scores;state";
 const ODDS_INCLUDE = "bookmaker";
 
 export class SportMonksClient {
-  constructor({ apiToken, baseUrl = DEFAULT_BASE_URL, fetchImpl = fetch }) {
-    this.apiToken = apiToken;
+  constructor({ apiToken, authMode = "query", baseUrl = DEFAULT_BASE_URL, fetchImpl = fetch }) {
+    this.apiToken = String(apiToken ?? "").trim();
+    this.authMode = normalizedAuthMode(authMode);
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
   }
@@ -21,11 +22,16 @@ export class SportMonksClient {
       }
     }
 
+    const headers = { accept: "application/json" };
+    if (this.authMode === "query" || this.authMode === "both") {
+      url.searchParams.set("api_token", this.apiToken);
+    }
+    if (this.authMode === "bearer" || this.authMode === "both") {
+      headers.authorization = `Bearer ${this.apiToken}`;
+    }
+
     const response = await this.fetchImpl(url, {
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${this.apiToken}`
-      },
+      headers,
       signal: AbortSignal.timeout(20_000)
     });
 
@@ -114,6 +120,12 @@ export class SportMonksClient {
 
 function buildUrl(baseUrl, endpoint) {
   return new URL(endpoint.replace(/^\/+/, ""), `${baseUrl.replace(/\/+$/, "")}/`);
+}
+
+function normalizedAuthMode(value) {
+  const mode = String(value ?? "query").trim().toLowerCase();
+  if (["query", "bearer", "both"].includes(mode)) return mode;
+  return "query";
 }
 
 function normalizeData(data) {

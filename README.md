@@ -35,6 +35,7 @@ Create `.env` from `.env.example`, then provide:
 ```text
 FOOTBALL_PROVIDER=sportmonks
 SPORTMONKS_API_TOKEN=your_sportmonks_token
+SPORTMONKS_AUTH_MODE=query
 RESEND_API_KEY=your_resend_key
 ALERT_EMAIL_TO=your@email.com
 ```
@@ -116,6 +117,9 @@ When the Blueprint sync creates the cron job, enter:
 - `RESEND_API_KEY`
 - `ALERT_EMAIL_TO`
 
+Use the raw SportsMonks API token from your SportsMonks dashboard. Do not use
+your login password, and do not add quotes or extra spaces around the token.
+
 No web service is required for the cron digest.
 
 ## Configuration
@@ -126,6 +130,7 @@ No web service is required for the cron digest.
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
 - `FOOTBALL_PROVIDER=sportmonks`: digest data provider; set `api-football` only to use the old API-Football fallback
 - `SPORTMONKS_API_TOKEN`: SportsMonks API token used by the digest
+- `SPORTMONKS_AUTH_MODE=query`: send the token as `api_token`; set `bearer` only if SportsMonks support tells you to use bearer auth
 - `SPORTMONKS_MODEL_SIGNALS_ENABLED=true`: add SportsMonks value-bet and probability confirmation when available
 - `CALIBRATION_MINIMUM_SAMPLES=12`: settled local picks required before calibration affects ranking
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`

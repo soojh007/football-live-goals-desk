@@ -117,7 +117,10 @@ function createDigestClient() {
     return new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
   }
   if (provider === "sportmonks" || provider === "sportsmonks" || provider === "sportsmonk") {
-    return new SportMonksClient({ apiToken: process.env.SPORTMONKS_API_TOKEN });
+    return new SportMonksClient({
+      apiToken: process.env.SPORTMONKS_API_TOKEN,
+      authMode: process.env.SPORTMONKS_AUTH_MODE
+    });
   }
   throw new Error(`Unsupported FOOTBALL_PROVIDER: ${provider}`);
 }

@@ -37,7 +37,8 @@ test("normalizes SportsMonks fixtures into digest fixture shape", async () => {
   assert.match(requests[0], /fixtures\/date\/2026-08-23/);
   assert.match(requests[0], /api\.sportmonks\.com\/v3\/football\/fixtures\/date\/2026-08-23/);
   assert.match(requests[0], /include=participants%3Bleague.country%3Bscores%3Bstate/);
-  assert.equal(headers[0].authorization, "Bearer token");
+  assert.match(requests[0], /api_token=token/);
+  assert.equal(headers[0].authorization, undefined);
   assert.equal(result.remaining, 99);
   assert.deepEqual(result.data[0], {
     fixture: {
@@ -52,6 +53,25 @@ test("normalizes SportsMonks fixtures into digest fixture shape", async () => {
     },
     goals: { home: 0, away: 0 }
   });
+});
+
+test("supports trimmed bearer auth when configured", async () => {
+  const requests = [];
+  const headers = [];
+  const client = new SportMonksClient({
+    apiToken: " token\n",
+    authMode: "bearer",
+    fetchImpl: async (url, options) => {
+      requests.push(String(url));
+      headers.push(options.headers);
+      return jsonResponse({ data: [], pagination: { has_more: false } });
+    }
+  });
+
+  await client.getFixturesByDate("2026-08-23");
+
+  assert.doesNotMatch(requests[0], /api_token=/);
+  assert.equal(headers[0].authorization, "Bearer token");
 });
 
 test("normalizes SportsMonks pre-match odds into existing odds shape", async () => {
