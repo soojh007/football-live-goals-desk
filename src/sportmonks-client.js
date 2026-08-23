@@ -14,8 +14,7 @@ export class SportMonksClient {
       throw new Error("SPORTMONKS_API_TOKEN is missing. Add it to Render and .env.");
     }
 
-    const url = new URL(endpoint, this.baseUrl);
-    url.searchParams.set("api_token", this.apiToken);
+    const url = buildUrl(this.baseUrl, endpoint);
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined && value !== null && value !== "") {
         url.searchParams.set(key, String(value));
@@ -23,7 +22,10 @@ export class SportMonksClient {
     }
 
     const response = await this.fetchImpl(url, {
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${this.apiToken}`
+      },
       signal: AbortSignal.timeout(20_000)
     });
 
@@ -90,7 +92,7 @@ export class SportMonksClient {
   }
 
   async getFixtureProbabilities(fixtureId) {
-    const result = await this.requestAll(`/predictions/probabilities/fixtures/${fixtureId}`, {
+    const result = await this.requestAll(`/predictions/probabilities/fixture/${fixtureId}`, {
       include: "type"
     });
     return {
@@ -100,7 +102,7 @@ export class SportMonksClient {
   }
 
   async getFixtureValueBets(fixtureId) {
-    const result = await this.requestAll(`/predictions/value-bets/fixtures/${fixtureId}`, {
+    const result = await this.requestAll(`/predictions/value-bets/fixture/${fixtureId}`, {
       include: "type"
     });
     return {
@@ -108,6 +110,10 @@ export class SportMonksClient {
       remaining: remainingRequests(result.rateLimit)
     };
   }
+}
+
+function buildUrl(baseUrl, endpoint) {
+  return new URL(endpoint.replace(/^\/+/, ""), `${baseUrl.replace(/\/+$/, "")}/`);
 }
 
 function normalizeData(data) {

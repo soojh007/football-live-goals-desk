@@ -4,10 +4,12 @@ import { SportMonksClient } from "../src/sportmonks-client.js";
 
 test("normalizes SportsMonks fixtures into digest fixture shape", async () => {
   const requests = [];
+  const headers = [];
   const client = new SportMonksClient({
     apiToken: "token",
-    fetchImpl: async (url) => {
+    fetchImpl: async (url, options) => {
       requests.push(String(url));
+      headers.push(options.headers);
       return jsonResponse({
         data: [
           {
@@ -33,7 +35,9 @@ test("normalizes SportsMonks fixtures into digest fixture shape", async () => {
   const result = await client.getFixturesByDate("2026-08-23");
 
   assert.match(requests[0], /fixtures\/date\/2026-08-23/);
+  assert.match(requests[0], /api\.sportmonks\.com\/v3\/football\/fixtures\/date\/2026-08-23/);
   assert.match(requests[0], /include=participants%3Bleague.country%3Bscores%3Bstate/);
+  assert.equal(headers[0].authorization, "Bearer token");
   assert.equal(result.remaining, 99);
   assert.deepEqual(result.data[0], {
     fixture: {
@@ -148,29 +152,34 @@ test("paginates SportsMonks date responses", async () => {
 });
 
 test("normalizes SportsMonks value bets", async () => {
+  const requests = [];
   const client = new SportMonksClient({
     apiToken: "token",
-    fetchImpl: async () => jsonResponse({
-      data: [
-        {
-          fixture_id: 1001,
-          predictions: {
-            bet: "1",
-            bookmaker: "bet365",
-            odd: 1.9,
-            is_value: true,
-            stake: 0.95,
-            fair_odd: 1.84
-          },
-          type_id: 33
-        }
-      ],
-      pagination: { has_more: false }
-    })
+    fetchImpl: async (url) => {
+      requests.push(String(url));
+      return jsonResponse({
+        data: [
+          {
+            fixture_id: 1001,
+            predictions: {
+              bet: "1",
+              bookmaker: "bet365",
+              odd: 1.9,
+              is_value: true,
+              stake: 0.95,
+              fair_odd: 1.84
+            },
+            type_id: 33
+          }
+        ],
+        pagination: { has_more: false }
+      });
+    }
   });
 
   const result = await client.getFixtureValueBets(1001);
 
+  assert.match(requests[0], /predictions\/value-bets\/fixture\/1001/);
   assert.deepEqual(result.data, [
     {
       fixtureId: 1001,
@@ -187,23 +196,28 @@ test("normalizes SportsMonks value bets", async () => {
 });
 
 test("normalizes SportsMonks 1X2 probabilities when labels are available", async () => {
+  const requests = [];
   const client = new SportMonksClient({
     apiToken: "token",
-    fetchImpl: async () => jsonResponse({
-      data: [
-        {
-          fixture_id: 1001,
-          predictions: { home: 55, draw: 25, away: 20 },
-          type_id: 100,
-          type: { name: "Fulltime Result" }
-        }
-      ],
-      pagination: { has_more: false }
-    })
+    fetchImpl: async (url) => {
+      requests.push(String(url));
+      return jsonResponse({
+        data: [
+          {
+            fixture_id: 1001,
+            predictions: { home: 55, draw: 25, away: 20 },
+            type_id: 100,
+            type: { name: "Fulltime Result" }
+          }
+        ],
+        pagination: { has_more: false }
+      });
+    }
   });
 
   const result = await client.getFixtureProbabilities(1001);
 
+  assert.match(requests[0], /predictions\/probabilities\/fixture\/1001/);
   assert.deepEqual(result.data, [
     {
       fixtureId: 1001,
