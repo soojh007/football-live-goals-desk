@@ -164,7 +164,7 @@ export function analyzePrediction(fixture, predictionResponse) {
 export function analyzeOdds(
   fixture,
   oddsResponse = [],
-  { agentConfig = {}, calibrationStats = null } = {}
+  { agentConfig = {}, calibrationStats = null, modelSignals = null } = {}
 ) {
   const candidates = [
     buildMatchWinnerCandidate({ fixture, oddsResponse, agentConfig }),
@@ -173,6 +173,7 @@ export function analyzeOdds(
 
   if (!candidates.length) return null;
   return candidates
+    .map((candidate) => applyModelSignals(candidate, modelSignals))
     .map((candidate) => applyCalibration(candidate, calibrationStats))
     .sort(compareOddsCandidates)[0];
 }
@@ -349,6 +350,88 @@ function compareOddsCandidates(a, b) {
   const kickoffDifference = new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime();
   const qualityDifference = qualityRank(b.dataQuality) - qualityRank(a.dataQuality);
   return qualityDifference || b.rankScore - a.rankScore || kickoffDifference;
+}
+
+function applyModelSignals(candidate, modelSignals) {
+  if (!modelSignals || candidate.marketType !== "1X2") {
+    return {
+      ...candidate,
+      modelSignals: { status: modelSignals ? "unsupported-market" : "unavailable" }
+    };
+  }
+
+  const valueBet = (modelSignals.valueBets ?? [])
+    .find((item) => item.marketType === "1X2" && item.selection === candidate.selection);
+  const probability = (modelSignals.probabilities ?? [])
+    .find((item) => item.marketType === "1X2")?.probabilities?.[candidate.selection];
+
+  const reasons = [];
+  let adjustment = 0;
+  const model = {
+    status: "checked",
+    valueBet: null,
+    probability: probability ?? null,
+    adjustment: 0
+  };
+
+  if (valueBet) {
+    const fairProbability = valueBet.fairOdd ? 1 / valueBet.fairOdd : null;
+    const fairEdge = fairProbability === null ? null : fairProbability - candidate.impliedProbability;
+    model.valueBet = {
+      isValue: valueBet.isValue,
+      odd: valueBet.odd,
+      fairOdd: valueBet.fairOdd,
+      bookmaker: valueBet.bookmaker,
+      stake: valueBet.stake,
+      fairEdge: fairEdge === null ? null : round(fairEdge, 4)
+    };
+    if (valueBet.isValue || (valueBet.fairOdd && candidate.selectedOdd > valueBet.fairOdd)) {
+      adjustment += 5;
+      reasons.push(
+        `SportsMonks value bet agrees: fair odd ${valueBet.fairOdd ?? "n/a"}, best price ${candidate.selectedOdd}`
+      );
+    } else {
+      reasons.push(
+        `SportsMonks value check: no clear value at fair odd ${valueBet.fairOdd ?? "n/a"}`
+      );
+    }
+  }
+
+  if (probability !== undefined && probability !== null) {
+    const probabilityEdge = probability - candidate.impliedProbability;
+    model.probabilityEdge = round(probabilityEdge, 4);
+    if (probabilityEdge >= 0.04) {
+      adjustment += 3;
+      reasons.push(
+        `SportsMonks probability edge: ${formatPercent(probability)} vs market ${formatPercent(candidate.impliedProbability)}`
+      );
+    } else {
+      reasons.push(
+        `SportsMonks probability: ${formatPercent(probability)} vs market ${formatPercent(candidate.impliedProbability)}`
+      );
+    }
+  }
+
+  if (!reasons.length) {
+    return {
+      ...candidate,
+      modelSignals: { status: "none" },
+      reasons: [...candidate.reasons, "SportsMonks model layer: no matching value/probability signal"]
+    };
+  }
+
+  adjustment = clamp(adjustment, 0, 8);
+  model.adjustment = adjustment;
+  return {
+    ...candidate,
+    rankScore: clamp(candidate.rankScore + adjustment, 25, 95),
+    mainSignal: {
+      ...candidate.mainSignal,
+      score: clamp(candidate.mainSignal.score + adjustment, 25, 95)
+    },
+    modelSignals: model,
+    reasons: [...candidate.reasons, ...reasons]
+  };
 }
 
 function applyCalibration(candidate, calibrationStats) {

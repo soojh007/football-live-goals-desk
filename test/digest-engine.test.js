@@ -227,6 +227,44 @@ test("adds calibration context and rank adjustment when local history is ready",
   assert.match(candidate.reasons.join(" "), /Calibration: league-market 20 settled picks/);
 });
 
+test("adds SportsMonks value and probability context to 1X2 candidates", () => {
+  const candidate = analyzeOdds(
+    makeFixture(1, "England", "2026-06-13T18:00:00+08:00"),
+    makeOddsResponse([
+      { bookmaker: "A", home: 1.9, draw: 3.4, away: 4.2 },
+      { bookmaker: "B", home: 1.85, draw: 3.5, away: 4.5 },
+      { bookmaker: "C", home: 1.91, draw: 3.3, away: 4.4 }
+    ]),
+    {
+      modelSignals: {
+        valueBets: [
+          {
+            marketType: "1X2",
+            selection: "home",
+            fairOdd: 1.7,
+            odd: 1.95,
+            bookmaker: "Book C",
+            stake: 1.2,
+            isValue: true
+          }
+        ],
+        probabilities: [
+          {
+            marketType: "1X2",
+            probabilities: { home: 0.58, draw: 0.24, away: 0.18 }
+          }
+        ]
+      }
+    }
+  );
+
+  assert.equal(candidate.modelSignals.status, "checked");
+  assert.equal(candidate.modelSignals.adjustment, 8);
+  assert.equal(candidate.rankScore, candidate.baseRankScore + 8);
+  assert.match(candidate.reasons.join(" "), /SportsMonks value bet agrees/);
+  assert.match(candidate.reasons.join(" "), /SportsMonks probability edge/);
+});
+
 test("analyses explicit over 2.5 candidate from team goal averages", () => {
   const candidate = analyzePrediction(
     makeFixture(1, "Netherlands", "2026-06-13T18:00:00+08:00"),

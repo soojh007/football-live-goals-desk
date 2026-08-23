@@ -1,6 +1,6 @@
 # Football Match Finder
 
-A low-quota API-Football workflow with:
+A low-quota football betting workflow with:
 
 - rolling cron emails of likely 1X2 and Asian Handicap picks inferred from current odds.
 
@@ -23,12 +23,18 @@ The default is therefore at most 27 API requests per email. There are six
 scheduled emails per day, so the normal cap is about 162 API requests per day.
 Results with insufficient data are removed before ranking.
 
+When `SPORTMONKS_MODEL_SIGNALS_ENABLED=true`, each analysed fixture can also
+make optional SportsMonks prediction/value-bet requests. If your subscription
+does not include those endpoints, the digest logs a warning and continues with
+odds plus local calibration.
+
 ## Local setup
 
 Create `.env` from `.env.example`, then provide:
 
 ```text
-API_FOOTBALL_KEY=your_api_sports_key
+FOOTBALL_PROVIDER=sportmonks
+SPORTMONKS_API_TOKEN=your_sportmonks_token
 RESEND_API_KEY=your_resend_key
 ALERT_EMAIL_TO=your@email.com
 ```
@@ -61,8 +67,9 @@ npm run live-alerts
 
 The digest model combines:
 
-- current bookmaker 1X2 odds from API-Football;
-- current bookmaker Asian Handicap odds from API-Football;
+- current bookmaker 1X2 odds from SportsMonks;
+- current bookmaker Asian Handicap odds from SportsMonks;
+- SportsMonks value-bet and probability signals when available;
 - normalized implied probabilities with bookmaker margin removed;
 - the best available price for the selected outcome;
 - the number of bookmakers sampled;
@@ -105,7 +112,7 @@ historically worth taking?"
 
 When the Blueprint sync creates the cron job, enter:
 
-- `API_FOOTBALL_KEY`
+- `SPORTMONKS_API_TOKEN`
 - `RESEND_API_KEY`
 - `ALERT_EMAIL_TO`
 
@@ -117,6 +124,9 @@ No web service is required for the cron digest.
 - `DIGEST_MAX_ANALYSES=25`: hard cap on odds calls per email
 - `DIGEST_MAX_PICKS=12`: maximum matches in the email
 - `DIGEST_TIMEZONE=Asia/Singapore`: fixture date and displayed kickoff timezone
+- `FOOTBALL_PROVIDER=sportmonks`: digest data provider; set `api-football` only to use the old API-Football fallback
+- `SPORTMONKS_API_TOKEN`: SportsMonks API token used by the digest
+- `SPORTMONKS_MODEL_SIGNALS_ENABLED=true`: add SportsMonks value-bet and probability confirmation when available
 - `CALIBRATION_MINIMUM_SAMPLES=12`: settled local picks required before calibration affects ranking
 - `DIGEST_COUNTRIES`: optional comma-separated override for the countries in `config.json`
 - `DIGEST_LEAGUES`: optional comma-separated override for the competitions in `config.json`; use `Country:League` for generic names such as `Chile:Primera División`

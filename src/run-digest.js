@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadEnv } from "./env.js";
 import { ApiFootballClient } from "./api-football.js";
+import { SportMonksClient } from "./sportmonks-client.js";
 import {
   analyzeOdds,
   rankDigestCandidates,
@@ -24,8 +25,9 @@ const maxAnalyses = clampInteger(process.env.DIGEST_MAX_ANALYSES, 25, 1, 100);
 const maxPicks = clampInteger(process.env.DIGEST_MAX_PICKS, 12, 1, 30);
 const concurrency = clampInteger(process.env.DIGEST_CONCURRENCY, 4, 1, 8);
 const calibrationMinimumSamples = clampInteger(process.env.CALIBRATION_MINIMUM_SAMPLES, 12, 1, 500);
+const modelSignalsEnabled = parseBoolean(process.env.SPORTMONKS_MODEL_SIGNALS_ENABLED, true);
 const dryRun = process.argv.includes("--dry-run");
-const client = new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
+const client = createDigestClient();
 const calibrationStore = new CalibrationStore(path.resolve("data"));
 const mailer = new DigestEmail({
   apiKey: process.env.RESEND_API_KEY,
@@ -53,13 +55,20 @@ const selected = selectUpcomingFixtures(fixtures, {
   countries: configuredList("DIGEST_COUNTRIES", config.digestCountries),
   leagues: configuredList("DIGEST_LEAGUES", config.digestLeagues)
 });
+const modelSignalRequests = modelSignalsEnabled && supportsModelSignals(client)
+  ? selected.length * 2
+  : 0;
 const analyses = await mapWithConcurrency(selected, concurrency, async (fixture) => {
   try {
-    const result = await client.getFixtureOdds(fixture.fixture.id);
+    const [result, modelSignals] = await Promise.all([
+      client.getFixtureOdds(fixture.fixture.id),
+      modelSignalsEnabled ? getModelSignals(client, fixture.fixture.id) : null
+    ]);
     if (!result.data[0]) return null;
     return analyzeOdds(fixture, result.data, {
       agentConfig: config.oddsAgent,
-      calibrationStats
+      calibrationStats,
+      modelSignals
     });
   } catch (error) {
     console.warn(`Skipped fixture ${fixture.fixture.id}: ${error.message}`);
@@ -77,7 +86,9 @@ const report = {
   fixturesFound: fixtures.length,
   upcomingFound: selected.length,
   analyzed: selected.length,
-  requestsUsed: dates.length + selected.length + settlement.checked,
+  requestsUsed: dates.length + selected.length + settlement.checked + modelSignalRequests,
+  modelSignalRequests,
+  modelSignalsEnabled,
   settled: settlement.settled,
   settlementChecked: settlement.checked,
   candidates
@@ -98,6 +109,46 @@ if (!dryRun) {
   );
 } else {
   console.log(`Dry run complete: ${htmlPath}`);
+}
+
+function createDigestClient() {
+  const provider = String(process.env.FOOTBALL_PROVIDER ?? "sportmonks").toLowerCase();
+  if (provider === "api-football" || provider === "api_football") {
+    return new ApiFootballClient({ apiKey: process.env.API_FOOTBALL_KEY });
+  }
+  if (provider === "sportmonks" || provider === "sportsmonks" || provider === "sportsmonk") {
+    return new SportMonksClient({ apiToken: process.env.SPORTMONKS_API_TOKEN });
+  }
+  throw new Error(`Unsupported FOOTBALL_PROVIDER: ${provider}`);
+}
+
+function supportsModelSignals(client) {
+  return (
+    typeof client.getFixtureProbabilities === "function" ||
+    typeof client.getFixtureValueBets === "function"
+  );
+}
+
+async function getModelSignals(client, fixtureId) {
+  const [probabilities, valueBets] = await Promise.all([
+    optionalProviderCall(client, "getFixtureProbabilities", fixtureId),
+    optionalProviderCall(client, "getFixtureValueBets", fixtureId)
+  ]);
+  if (!probabilities && !valueBets) return null;
+  return {
+    probabilities: probabilities?.data ?? [],
+    valueBets: valueBets?.data ?? []
+  };
+}
+
+async function optionalProviderCall(client, method, fixtureId) {
+  if (typeof client[method] !== "function") return null;
+  try {
+    return await client[method](fixtureId);
+  } catch (error) {
+    console.warn(`Skipped ${method} for fixture ${fixtureId}: ${error.message}`);
+    return null;
+  }
 }
 
 async function settlePendingCandidates({ client, store, now, concurrency }) {
