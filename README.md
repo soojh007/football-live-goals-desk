@@ -57,13 +57,6 @@ Run and email the digest:
 npm run digest
 ```
 
-Run one manual in-game scan. Live alert emails are disabled by default unless
-`LIVE_ALERTS_ENABLED=true` is set:
-
-```sh
-npm run live-alerts
-```
-
 ## Ranking
 
 The digest model combines:

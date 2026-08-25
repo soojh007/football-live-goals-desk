@@ -9,7 +9,6 @@
     "dev": "node --watch src/server.js",
     "digest": "node src/run-digest.js",
     "digest:dry": "node src/run-digest.js --dry-run",
-    "live-alerts": "node src/run-live-alerts.js",
     "test": "node --test"
   },
   "engines": {

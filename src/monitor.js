@@ -6,7 +6,6 @@ export class LiveMonitor {
   constructor({
     client,
     store,
-    alerts,
     configPath = path.resolve("config.json"),
     configOverrides = {},
     statisticsRefreshSeconds = 120,
@@ -15,7 +14,6 @@ export class LiveMonitor {
   }) {
     this.client = client;
     this.store = store;
-    this.alerts = alerts;
     this.configPath = configPath;
     this.configOverrides = configOverrides;
     this.statisticsRefreshMs = statisticsRefreshSeconds * 1000;
@@ -28,10 +26,6 @@ export class LiveMonitor {
       loading: false,
       error: null,
       remainingRequests: null,
-      alerts: {
-        enabled: Boolean(alerts?.enabled),
-        lastResult: null
-      },
       fixtures: []
     };
   }
@@ -119,27 +113,11 @@ export class LiveMonitor {
         return evaluated;
       });
 
-      let alertError = null;
-      let alertResults = [];
-      if (this.alerts) {
-        try {
-          alertResults = await this.alerts.notify(details);
-        } catch (error) {
-          alertError = error.message;
-        }
-      }
-
       this.state = {
         updatedAt: new Date().toISOString(),
         loading: false,
         error: null,
         remainingRequests: live.remaining,
-        alerts: {
-          enabled: Boolean(this.alerts?.enabled),
-          lastResult: this.alerts?.lastResult ?? null,
-          sent: alertResults.length,
-          error: alertError
-        },
         fixtures: details.sort(sortFixtures)
       };
       pruneFixtureCache(this.fixtureCache, new Set(relevant.map((fixture) => fixture.fixture.id)));
